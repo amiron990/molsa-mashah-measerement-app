@@ -12,6 +12,15 @@
 /** חייב להיות זהה ל-COLLECT_TOKEN שב-assets/collect.js */
 var TOKEN = 'molsa-workshop-2026';
 
+/**
+ * מלאו רק אם הסקריפט אינו יושב בתוך הגיליון.
+ * כשפותחים את העורך מתוך הגיליון (תוספים ← Apps Script) הוא מקושר אליו מאליו
+ * והשדה הזה מיותר. כשיוצרים פרויקט עצמאי מ-script.google.com אין "גיליון פעיל",
+ * ואז צריך להדביק כאן את המזהה מכתובת הגיליון:
+ *   docs.google.com/spreadsheets/d/<זה המזהה>/edit
+ */
+var SHEET_ID = '';
+
 /** הגדרת הגיליונות: הכותרות, ומאילו שדות מורכב מפתח ה-upsert */
 var SHEETS = {
   ratings: {
@@ -53,9 +62,15 @@ var LOG_COLS = ['ts', 'rid', 'שם', 'סוג', 'תוכן'];
 
 /** בדיקה ידנית: פתיחת כתובת ה-Web App בדפדפן */
 function doGet() {
-  return ContentService
-    .createTextOutput('OK — מצפן רשויות מקומיות, נקודת קליטה פעילה.')
-    .setMimeType(ContentService.MimeType.TEXT);
+  var msg;
+  try {
+    var names = book().getSheets().map(function (s) { return s.getName(); });
+    msg = 'OK — נקודת קליטה פעילה.\nגיליון: ' + book().getName() +
+          '\nלשוניות: ' + names.join(', ');
+  } catch (err) {
+    msg = 'שגיאה: ' + err.message;
+  }
+  return ContentService.createTextOutput(msg).setMimeType(ContentService.MimeType.TEXT);
 }
 
 function doPost(e) {
@@ -138,11 +153,19 @@ function keyOf(ev, fields) {
   return parts.join('');
 }
 
+/** הגיליון שאליו כותבים — מקושר, או לפי SHEET_ID */
+function book() {
+  var b = SpreadsheetApp.getActiveSpreadsheet();
+  if (b) return b;
+  if (SHEET_ID) return SpreadsheetApp.openById(SHEET_ID);
+  throw new Error('הסקריפט אינו מקושר לגיליון. פתחו את העורך מתוך הגיליון ' +
+    '(תוספים ← Apps Script), או מלאו SHEET_ID בראש הקובץ.');
+}
+
 function sheetOf(name, cols) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sh = ss.getSheetByName(name);
+  var sh = book().getSheetByName(name);
   if (!sh) {
-    sh = ss.insertSheet(name);
+    sh = book().insertSheet(name);
     sh.appendRow(cols);
     sh.getRange(1, 1, 1, cols.length).setFontWeight('bold');
     sh.setFrozenRows(1);
@@ -157,13 +180,23 @@ function reply(o) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-/* ---------- בדיקה מתוך העורך ----------
-   הריצו את הפונקציה הזו פעם אחת אחרי ההדבקה: היא יוצרת את הגיליונות
-   ומאשרת את ההרשאות, בלי להמתין למשתתף ראשון. */
+/* ---------- הקמה ובדיקה מתוך העורך ----------
+   הריצו את setup פעם אחת אחרי ההדבקה. היא מאשרת את ההרשאות ויוצרת את כל
+   הלשוניות מיד, במקום שכל אחת תיווצר רק כשמגיע אליה האירוע הראשון. */
+function setup() {
+  var made = [];
+  for (var name in SHEETS) { sheetOf(name, SHEETS[name].cols); made.push(name); }
+  sheetOf('log', LOG_COLS); made.push('log');
+  Logger.log('הגיליון: ' + book().getName());
+  Logger.log('נוצרו או קיימות הלשוניות: ' + made.join(', '));
+  return made;
+}
+
+/** כתיבת שורת בדיקה מלאה — לוודא שהנתיב מקצה לקצה עובד */
 function testWrite() {
   write({
     kind: 'sessions', ts: new Date().toISOString(), rid: 'test-rid',
     name: 'בדיקה', district: 'חיפה', screen: 'בדיקה', ua: 'editor'
   });
-  Logger.log('נכתב. בדקו את הגיליונות sessions ו-log.');
+  Logger.log('נכתב. בדקו את הלשוניות sessions ו-log.');
 }
