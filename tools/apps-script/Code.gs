@@ -56,6 +56,9 @@ var SHEETS = {
   }
 };
 
+/** מפריד בין חלקי מפתח ה-upsert. חייב להיות תו שלא מופיע בערכים עצמם. */
+var SEP = '§';
+
 var LOG_COLS = ['ts', 'rid', 'שם', 'סוג', 'תוכן'];
 
 /* ---------- נקודות הכניסה ---------- */
@@ -133,7 +136,7 @@ function keyIndex(sh, def) {
   for (var r = 0; r < vals.length; r++) {
     var parts = [];
     for (var i = 0; i < at.length; i++) parts.push(String(vals[r][at[i]]));
-    out[parts.join('')] = r + 2;
+    out[parts.join(SEP)] = r + 2;
   }
   return out;
 }
@@ -150,7 +153,7 @@ function headerFor(field, def) {
 function keyOf(ev, fields) {
   var parts = [];
   for (var i = 0; i < fields.length; i++) parts.push(String(blank(ev[fields[i]])));
-  return parts.join('');
+  return parts.join(SEP);
 }
 
 /** הגיליון שאליו כותבים — מקושר, או לפי SHEET_ID */
