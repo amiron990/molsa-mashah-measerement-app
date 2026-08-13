@@ -677,7 +677,19 @@
 
     var W = 660, H = 258, L = 52, R = 18, T = 18, B = 34;
     var iw = W - L - R, ih = H - T - B;
-    var all = s.map(function (p) { return p[1]; }).concat(ref.map(function (p) { return p[1]; }));
+
+    /* קו ההשוואה הארצי מונח על ציר הזמן של הסדרה המוצגת לפי חודש, ולא לפי
+       מיקום ברשימה — כך הוא מופיע גם כשלנפה יש פחות חודשי מדידה מהארצי. */
+    var refMap = {};
+    ref.forEach(function (p) { refMap[p[0]] = p[1]; });
+    var refPts = [];
+    s.forEach(function (p, i) {
+      if (refMap[p[0]] != null) refPts.push([i, refMap[p[0]]]);
+    });
+    var refShown = refPts.length > 1;
+
+    var all = s.map(function (p) { return p[1]; })
+      .concat(refPts.map(function (p) { return p[1]; }));
     var mn = Math.min.apply(null, all), mx = Math.max.apply(null, all);
     if (mn === mx) { mn -= 1; mx += 1; }
     var span = mx - mn;
@@ -701,9 +713,8 @@
       o.push('<text x="' + X(t.i, s.length).toFixed(1) + '" y="' + (H - 12) + '" text-anchor="middle" font-size="11" font-family="Space Grotesk,sans-serif" fill="#8A8886">' + t.t + '</text>');
     });
 
-    var refShown = ref.length > 1 && ref.length === s.length;
     if (refShown) {
-      o.push('<polyline points="' + ref.map(function (p, i) { return X(i, ref.length).toFixed(1) + ',' + Y(p[1]).toFixed(1); }).join(' ') +
+      o.push('<polyline points="' + refPts.map(function (p) { return X(p[0], s.length).toFixed(1) + ',' + Y(p[1]).toFixed(1); }).join(' ') +
         '" fill="none" stroke="#9AB6C4" stroke-width="1.6" stroke-dasharray="4 3" stroke-linejoin="round"/>');
     }
 
@@ -725,8 +736,6 @@
     o.push('<rect class="cx-hit" x="' + L + '" y="' + T + '" width="' + iw + '" height="' + ih + '" fill="transparent" style="cursor:crosshair"/>');
     o.push('</svg>');
 
-    var refMap = {};
-    ref.forEach(function (p) { refMap[p[0]] = p[1]; });
     chartGeo = {
       d: d, s: s, scope: state.scope, refMap: refShown ? refMap : null,
       W: W, L: L, T: T, iw: iw, ih: ih, X: X, Y: Y
@@ -944,7 +953,7 @@
     SCOPES.forEach(function (s) {
       var o = document.createElement('option');
       o.value = s;
-      o.textContent = s === NATIONAL ? 'ארצי (כל הנפות)' : 'נפת ' + s;
+      o.textContent = s === NATIONAL ? 'כל הארץ' : s;
       sel.appendChild(o);
     });
     sel.value = state.scope;
@@ -958,17 +967,17 @@
     var w = $('#navUser');
     if (!store.user) { w.innerHTML = ''; return; }
     w.innerHTML = '<span class="nm">' + esc(store.user.name) + '</span>' +
-      (store.user.district ? '<span class="dv">· נפת ' + esc(store.user.district) + '</span>' : '') +
+      (store.user.district ? '<span class="dv">· ' + esc(store.user.district) + '</span>' : '') +
       '<button type="button" id="switchUser">החלפת משתמש</button>';
     $('#switchUser').addEventListener('click', function () { openGate(true); });
   }
 
   function openGate(isSwitch) {
     var sel = $('#gDistrict');
-    sel.innerHTML = '<option value="">— ללא שיוך —</option>';
+    sel.innerHTML = '<option value="">כל הארץ</option>';
     districts().forEach(function (s) {
       var o = document.createElement('option');
-      o.value = s; o.textContent = 'נפת ' + s;
+      o.value = s; o.textContent = s;
       sel.appendChild(o);
     });
     if (store.user) {
@@ -990,7 +999,8 @@
     saveStore();
     $('#gate').classList.remove('on');
     document.body.style.overflow = '';
-    if (dist) { state.scope = dist; $('#scopeSel').value = dist; }
+    state.scope = dist || NATIONAL;
+    $('#scopeSel').value = state.scope;
     renderUserBar(); renderList();
   }
 

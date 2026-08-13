@@ -326,17 +326,17 @@
     var w = $('#navUser');
     if (!user) { w.innerHTML = ''; return; }
     w.innerHTML = '<span class="nm">' + esc(user.name) + '</span>' +
-      (user.district ? '<span class="dv">· נפת ' + esc(user.district) + '</span>' : '') +
+      (user.district ? '<span class="dv">· ' + esc(user.district) + '</span>' : '') +
       '<button type="button" id="switchUser">החלפת משתמש</button>';
     $('#switchUser').addEventListener('click', function () { openGate(); });
   }
 
   function openGate() {
     var sel = $('#gDistrict');
-    sel.innerHTML = '<option value="">— ללא שיוך —</option>';
+    sel.innerHTML = '<option value="">כל הארץ</option>';
     districts().forEach(function (d) {
       var o = document.createElement('option');
-      o.value = d; o.textContent = 'נפת ' + d;
+      o.value = d; o.textContent = d;
       sel.appendChild(o);
     });
     if (user) {
