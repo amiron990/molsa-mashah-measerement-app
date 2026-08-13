@@ -13,120 +13,130 @@
 #      cd molsa-mashah-measerement-app
 #      bash tools/deploy-http-storage.sh
 #
-#  לבחירת מנוי מסוים:  SUB="<שם או מזהה>" bash tools/deploy-http-storage.sh
+#  הסקריפט עובר על המנויים עד שאחד מהם מצליח. לכפיית מנוי מסוים:
+#      SUB="<מזהה המנוי>" bash tools/deploy-http-storage.sh
+#
 #  לעדכון האתר בעתיד — git pull והרצה חוזרת. הכתובת נשארת זהה.
 # ============================================================================
-set -euo pipefail
+set -uo pipefail
 
 RG="${RG:-rg-molsa-workshop}"
 LOC="${LOC:-westeurope}"
 
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STAGE="$(mktemp -d)"
+trap 'rm -rf "$STAGE"' EXIT
 
-# ---- המנוי הפעיל -----------------------------------------------------------
-# המנוי שנבחר כברירת מחדל ב-Cloud Shell אינו תמיד זה שיש בו הרשאות, ולכן בודקים
-# מראש במקום להיכשל באמצע עם SubscriptionNotFound.
-if [ -n "${SUB:-}" ]; then
-  az account set --subscription "$SUB"
-fi
+echo "==> אוסף את קובצי האתר"
+cp "$SRC/index.html" "$SRC/workshop.html" "$STAGE/" || exit 1
+mkdir -p "$STAGE/assets"
+cp "$SRC/assets/"*.css "$SRC/assets/"*.js "$STAGE/assets/" || exit 1
 
-# רשימת המנויים ב-CLI מגיעה ממטמון ומכילה לפעמים מנויים שכבר אינם קיימים, ולכן
-# בודקים כל אחד בקריאה אמיתית ל-ARM ובוחרים את הראשון שבאמת עונה.
-usable() {
-  az account set --subscription "$1" 2>/dev/null || return 1
-  az group list --query "[0].name" -o tsv >/dev/null 2>&1
+# ---- ניסיון פריסה למנוי אחד ------------------------------------------------
+# מחזיר 0 בהצלחה. כל כישלון מחזיר 1, והקורא ממשיך למנוי הבא.
+deploy_to() {
+  local sub="$1" name reg existing sa key web
+
+  az account set --subscription "$sub" 2>/dev/null || return 1
+  az group list --query "[0].name" -o tsv >/dev/null 2>&1 || return 1
+  name="$(az account show --query name -o tsv 2>/dev/null)" || return 1
+  echo
+  echo "==> מנוי: $name ($sub)"
+
+  # בלי ספק המשאבים הזה יצירת חשבון אחסון נכשלת עם SubscriptionNotFound —
+  # שגיאה מבלבלת שאין לה קשר לקיום המנוי.
+  reg="$(az provider show --namespace Microsoft.Storage --query registrationState -o tsv 2>/dev/null)"
+  if [ "$reg" != "Registered" ]; then
+    echo "    רושם את ספק המשאבים Microsoft.Storage (עשוי לקחת דקה או שתיים)"
+    az provider register --namespace Microsoft.Storage --wait >/dev/null 2>&1 || {
+      echo "    לא ניתן לרשום את Microsoft.Storage במנוי הזה"; return 1; }
+  fi
+
+  echo "    קבוצת משאבים: $RG ($LOC)"
+  az group create -n "$RG" -l "$LOC" -o none 2>/dev/null || return 1
+
+  # בהרצה חוזרת משתמשים בחשבון האחסון הקיים, כדי שכתובת האתר לא תשתנה
+  existing="$(az storage account list -g "$RG" --query '[0].name' -o tsv 2>/dev/null)"
+  sa="${SA:-${existing:-molsaworkshop$(date +%s | tail -c 6)}}"
+
+  if [ -n "$existing" ] && [ "$sa" = "$existing" ]; then
+    echo "    חשבון אחסון קיים: $sa — מעדכן את התוכן"
+  else
+    echo "    יוצר חשבון אחסון: $sa — עם HTTP מאופשר"
+    az storage account create --name "$sa" --resource-group "$RG" --location "$LOC" \
+      --sku Standard_LRS --kind StorageV2 --min-tls-version TLS1_2 \
+      --https-only false --allow-blob-public-access true -o none 2>/dev/null || {
+      echo "    יצירת חשבון האחסון נכשלה"; return 1; }
+  fi
+
+  key="$(az storage account keys list -n "$sa" -g "$RG" --query '[0].value' -o tsv 2>/dev/null)" || return 1
+  [ -n "$key" ] || return 1
+
+  echo "    מפעיל אירוח אתר סטטי"
+  az storage blob service-properties update --account-name "$sa" --account-key "$key" \
+    --static-website --index-document index.html --404-document index.html -o none 2>/dev/null || return 1
+
+  echo "    מעלה את הקבצים"
+  az storage blob upload-batch --account-name "$sa" --account-key "$key" \
+    --source "$STAGE" --destination '$web' --overwrite \
+    --content-cache-control 'no-cache' -o none 2>/dev/null || return 1
+
+  web="$(az storage account show -n "$sa" -g "$RG" --query 'primaryEndpoints.web' -o tsv 2>/dev/null)" || return 1
+  OK_URL="http://${web#https://}"
+  OK_RG="$RG"
+  OK_SA="$sa"
+  return 0
 }
 
-SUB_ID=""
+# ---- מעבר על המנויים עד שאחד מצליח -----------------------------------------
+OK_URL=""; OK_RG=""; OK_SA=""
 if [ -n "${SUB:-}" ]; then
-  usable "$SUB" && SUB_ID="$SUB"
+  CANDIDATES="$SUB"
 else
-  CUR="$(az account show --query id -o tsv 2>/dev/null || true)"
-  for c in $CUR $(az account list --query "[?state=='Enabled'].id" -o tsv 2>/dev/null || true); do
-    if usable "$c"; then SUB_ID="$c"; break; fi
-  done
+  CANDIDATES="$(az account show --query id -o tsv 2>/dev/null) $(az account list --query "[?state=='Enabled'].id" -o tsv 2>/dev/null)"
 fi
 
-if [ -z "$SUB_ID" ]; then
+TRIED=""
+for c in $CANDIDATES; do
+  case " $TRIED " in *" $c "*) continue ;; esac
+  TRIED="$TRIED $c"
+  if deploy_to "$c"; then break; fi
+done
+
+if [ -z "$OK_URL" ]; then
   cat >&2 <<'ERR'
 
-לא נמצא מנוי שאפשר לפרוס אליו. המנויים שרשומים כאן אינם נגישים לחשבון —
-בדרך כלל כי ההזדהות פגה, או שהמנוי יושב ב-tenant אחר.
+הפריסה נכשלה בכל המנויים שנוסו. הסיבות הנפוצות:
 
-הריצו לפי הסדר:
+  • ההזדהות פגה               →  az login
+  • אין הרשאת Contributor      →  לבקש הרשאה, או מנוי אחר
+  • Azure Policy אוסר אחסון ללא Secure transfer  →  חריג מצוות הענן
 
-    az login
-    az account list --refresh --output table
-    bash tools/deploy-http-storage.sh
+לבדיקה ידנית של מנוי מסוים:
 
-אם הטבלה יוצאת ריקה, למשתמש אין מנוי ב-tenant הזה. בפורטל, בתפריט המשתמש
-למעלה מימין, החליפו Directory ל-tenant שבו נמצא המנוי, אתחלו את ה-Cloud Shell
-והריצו שוב.
+    az account set --subscription "<מזהה>"
+    az group create -n rg-molsa-workshop -l westeurope
+
 ERR
   exit 1
 fi
-
-SUB_NAME="$(az account show --query name -o tsv)"
-echo "==> מנוי: $SUB_NAME ($SUB_ID)"
-echo "    (לבחירת מנוי אחר: SUB=\"<מזהה המנוי>\" bash tools/deploy-http-storage.sh)"
-
-# ספק המשאבים של Storage חייב להיות רשום במנוי, אחרת יצירת חשבון האחסון נכשלת
-# עם SubscriptionNotFound — שגיאה מבלבלת שאין לה קשר לקיום המנוי.
-REG="$(az provider show --namespace Microsoft.Storage --query registrationState -o tsv 2>/dev/null || echo NotRegistered)"
-if [ "$REG" != "Registered" ]; then
-  echo "==> רושם את ספק המשאבים Microsoft.Storage (פעם אחת, עשוי לקחת דקה או שתיים)"
-  az provider register --namespace Microsoft.Storage --wait
-fi
-
-echo "==> אוסף את קובצי האתר"
-cp "$SRC/index.html" "$SRC/workshop.html" "$STAGE/"
-mkdir -p "$STAGE/assets"
-cp "$SRC/assets/"*.css "$SRC/assets/"*.js "$STAGE/assets/"
-
-echo "==> קבוצת משאבים: $RG ($LOC)"
-az group create -n "$RG" -l "$LOC" -o none
-
-# בהרצה חוזרת משתמשים בחשבון האחסון הקיים, כדי שכתובת האתר לא תשתנה
-EXISTING="$(az storage account list -g "$RG" --query '[0].name' -o tsv 2>/dev/null || true)"
-SA="${SA:-${EXISTING:-molsaworkshop$(date +%s | tail -c 6)}}"
-
-if [ "$SA" = "${EXISTING:-}" ]; then
-  echo "==> חשבון אחסון קיים: $SA — מעדכן את התוכן"
-else
-  echo "==> יוצר חשבון אחסון: $SA — עם HTTP מאופשר"
-  az storage account create --name "$SA" --resource-group "$RG" --location "$LOC" --sku Standard_LRS --kind StorageV2 --min-tls-version TLS1_2 --https-only false --allow-blob-public-access true -o none
-fi
-
-KEY="$(az storage account keys list -n "$SA" -g "$RG" --query '[0].value' -o tsv)"
-
-echo "==> מפעיל אירוח אתר סטטי"
-az storage blob service-properties update --account-name "$SA" --account-key "$KEY" --static-website --index-document index.html --404-document index.html -o none
-
-echo "==> מעלה את הקבצים"
-az storage blob upload-batch --account-name "$SA" --account-key "$KEY" --source "$STAGE" --destination '$web' --overwrite --content-cache-control 'no-cache' -o none
-
-rm -rf "$STAGE"
-
-WEB="$(az storage account show -n "$SA" -g "$RG" --query 'primaryEndpoints.web' -o tsv)"
-HTTP_URL="http://${WEB#https://}"
 
 cat <<EOF
 
 ============================================================================
  האתר עלה. הכתובת ב-HTTP — זו שבה ההטמעה של הדשבורד עובדת:
 
-   ${HTTP_URL}index.html
-   ${HTTP_URL}workshop.html
+   ${OK_URL}index.html
+   ${OK_URL}workshop.html
 
  שימו לב: הכתובת ציבורית וללא הצפנה. כדי להגביל גישה לכתובות ה-IP של המשרד
  בלבד (מומלץ), הריצו — עם טווחי ה-IP היוצאים של הארגון:
 
-   az storage account network-rule add -g $RG --account-name $SA --ip-address <IP-או-CIDR>
-   az storage account update -g $RG -n $SA --default-action Deny
+   az storage account network-rule add -g $OK_RG --account-name $OK_SA --ip-address <IP-או-CIDR>
+   az storage account update -g $OK_RG -n $OK_SA --default-action Deny
 
  למחיקת הכל בסיום:
 
-   az group delete -n $RG --yes --no-wait
+   az group delete -n $OK_RG --yes --no-wait
 ============================================================================
 EOF
