@@ -68,8 +68,16 @@ ERR
 fi
 
 SUB_NAME="$(az account show --query name -o tsv)"
-echo "==> מנוי: $SUB_NAME"
-echo "    (יש יותר ממנוי אחד? הריצו: SUB=\"שם המנוי\" bash tools/deploy-http-storage.sh)"
+echo "==> מנוי: $SUB_NAME ($SUB_ID)"
+echo "    (לבחירת מנוי אחר: SUB=\"<מזהה המנוי>\" bash tools/deploy-http-storage.sh)"
+
+# ספק המשאבים של Storage חייב להיות רשום במנוי, אחרת יצירת חשבון האחסון נכשלת
+# עם SubscriptionNotFound — שגיאה מבלבלת שאין לה קשר לקיום המנוי.
+REG="$(az provider show --namespace Microsoft.Storage --query registrationState -o tsv 2>/dev/null || echo NotRegistered)"
+if [ "$REG" != "Registered" ]; then
+  echo "==> רושם את ספק המשאבים Microsoft.Storage (פעם אחת, עשוי לקחת דקה או שתיים)"
+  az provider register --namespace Microsoft.Storage --wait
+fi
 
 echo "==> אוסף את קובצי האתר"
 cp "$SRC/index.html" "$SRC/workshop.html" "$STAGE/"
