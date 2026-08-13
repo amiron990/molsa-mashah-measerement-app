@@ -31,25 +31,23 @@ if [ -n "${SUB:-}" ]; then
   az account set --subscription "$SUB"
 fi
 
-if ! az account show -o none 2>/dev/null; then
-  echo "לא נמצא מנוי פעיל. הריצו 'az login' ואז הריצו את הסקריפט שוב." >&2
-  exit 1
+SUB_ID="$(az account show --query id -o tsv 2>/dev/null || true)"
+
+# אם המנוי הפעיל אינו זמין לחשבון — בוחרים אוטומטית את הראשון שכן זמין,
+# כדי שלא יהיה מה למלא ביד.
+if [ -z "$SUB_ID" ] || ! az account list --refresh --query "[?id=='$SUB_ID'] | length(@)" -o tsv | grep -q '^1$'; then
+  PICK="$(az account list --refresh --query "[?state=='Enabled'] | [0].id" -o tsv 2>/dev/null || true)"
+  if [ -z "$PICK" ]; then
+    echo "לא נמצא מנוי פעיל לחשבון הזה. הריצו 'az login' והריצו את הסקריפט שוב." >&2
+    exit 1
+  fi
+  az account set --subscription "$PICK"
+  SUB_ID="$PICK"
 fi
 
-SUB_ID="$(az account show --query id -o tsv)"
 SUB_NAME="$(az account show --query name -o tsv)"
-if ! az account list --refresh --query "[?id=='$SUB_ID'] | length(@)" -o tsv | grep -q '^1$'; then
-  echo >&2
-  echo "המנוי הפעיל ($SUB_NAME) אינו זמין לחשבון שלכם. אלה המנויים שכן:" >&2
-  echo >&2
-  az account list --refresh --output table >&2
-  echo >&2
-  echo "בחרו מתוך הרשימה והריצו שוב:" >&2
-  echo "    az account set --subscription \"<שם המנוי>\"" >&2
-  echo "    bash tools/deploy-http-storage.sh" >&2
-  exit 1
-fi
-echo "==> מנוי פעיל: $SUB_NAME"
+echo "==> מנוי: $SUB_NAME"
+echo "    (יש יותר ממנוי אחד? הריצו: SUB=\"שם המנוי\" bash tools/deploy-http-storage.sh)"
 
 echo "==> אוסף את קובצי האתר"
 cp "$SRC/index.html" "$SRC/workshop.html" "$STAGE/"
