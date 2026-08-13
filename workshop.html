@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/app.css?v=20260813-4">
+<link rel="stylesheet" href="assets/app.css?v=20260813-5">
 <style>
   html,body{height:100%}
   body{display:flex;flex-direction:column;height:100vh;overflow:hidden}
@@ -74,6 +74,9 @@
   .winpanel .tip{font-size:12px;color:var(--n4);background:var(--n1);border:1px solid var(--n2);border-radius:8px;padding:7px 12px}
   .winpanel .lk{font-size:12px;color:var(--blue);text-decoration:none}
   .winpanel .lk:hover{text-decoration:underline}
+  .winpanel .wlinks{display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:center}
+  .winpanel button.lk{border:0;background:none;padding:0;font:inherit;font-size:12px;color:var(--blue);cursor:pointer}
+  .winpanel button.lk[hidden]{display:none}
 
   main.ws.wmode.opened .dash{display:none}
   main.ws.wmode.opened aside{max-width:none}
@@ -224,7 +227,10 @@
           <b>Win + ←</b> בחלון אחד ו-<b>Win + →</b> בשני.
         </div>
         <code id="dashUrl"></code>
-        <a class="lk" id="pendOpen" href="#" target="_blank" rel="noopener">או פתיחה בלשונית רגילה ↗</a>
+        <div class="wlinks">
+          <a class="lk" id="pendOpen" href="#" target="_blank" rel="noopener">או פתיחה בלשונית רגילה ↗</a>
+          <button type="button" class="lk" id="winEmbed" hidden>החזרה להטמעה בתוך הדף</button>
+        </div>
       </div>
 
       <!-- הודעה לא חוסמת: הדשבורד ממשיך להיטען מאחוריה -->
@@ -272,7 +278,7 @@
   </form>
 </div>
 
-<script src="assets/data.js?v=20260813-4"></script>
-<script src="assets/workshop.js?v=20260813-4"></script>
+<script src="assets/data.js?v=20260813-5"></script>
+<script src="assets/workshop.js?v=20260813-5"></script>
 </body>
 </html>

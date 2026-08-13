@@ -424,6 +424,14 @@
     }, 1500);
   }
 
+  /* חזרה מהמצב של שני החלונות להטמעה בתוך הדף */
+  function backToFrame() {
+    store.winMode = false; saveStore();
+    if (dashOpen()) dashWin.close();
+    clearInterval(watchTimer);
+    applyDashMode();
+  }
+
   function applyDashMode() {
     var main = document.querySelector('main.ws'), f = $('#dashFrame');
     var win = store.winMode === true, opened = dashOpen();
@@ -439,6 +447,7 @@
       clearTimeout(dashTimer);
       $('#slow').hidden = true;
       $('#winHead').textContent = 'הדשבורד עובד בחלון נפרד';
+      $('#winEmbed').hidden = location.protocol === 'https:';
       if (!$('#winBody').innerHTML) setWinBody();
     } else {
       loadFrame();
@@ -479,6 +488,7 @@
     });
 
     $('#winOpen').addEventListener('click', openDashWindow);
+    $('#winEmbed').addEventListener('click', backToFrame);
     $('#winDismiss').addEventListener('click', function () {
       $('#winPanel').hidden = true;
       $('#slow').hidden = false;
@@ -490,12 +500,7 @@
       if (dashOpen()) { dashWin.location.href = DASH_HTTP; dashWin.focus(); }
       else openDashWindow();
     });
-    $('#winBack').addEventListener('click', function () {
-      store.winMode = false; saveStore();
-      if (dashOpen()) dashWin.close();
-      clearInterval(watchTimer);
-      applyDashMode();
-    });
+    $('#winBack').addEventListener('click', backToFrame);
     $('#dashReload').addEventListener('click', function () {
       if (store.winMode === true) { openDashWindow(); return; }
       loadFrame();
