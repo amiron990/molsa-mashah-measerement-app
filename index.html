@@ -3,11 +3,158 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>מדאטה להחלטה — כלי לימוד מסכים אנליטיים | Know Your Data</title>
-<meta http-equiv="refresh" content="0; url=analytics-screens-workshop.html">
-<link rel="canonical" href="analytics-screens-workshop.html">
+<title>מצפן רשויות מקומיות — תפיסת המדידה</title>
+<meta name="description" content="מפת מדדים להערכת איכות עבודת המחלקות לשירותים חברתיים — אגף בכיר איכות, פיקוח ובקרה">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/app.css?v=20260812-2">
 </head>
 <body>
-<p>מעבר לכלי... אם הדף אינו נטען אוטומטית, <a href="analytics-screens-workshop.html">לחצו כאן</a>.</p>
+
+<nav class="nav">
+  <div class="brand">
+    <svg viewBox="0 0 40 40" aria-hidden="true">
+      <circle cx="20" cy="20" r="17" fill="none" stroke="#fff" stroke-width="2.2" opacity=".9"/>
+      <path d="M20 7.5 L24.2 15.8 L32.5 20 L24.2 24.2 L20 32.5 L15.8 24.2 L7.5 20 L15.8 15.8 Z" fill="#fff" opacity=".95"/>
+    </svg>
+    <span class="bt">מצפן רשויות מקומיות</span>
+  </div>
+  <div class="tabs">
+    <span class="sep"></span>
+    <a href="index.html" class="on">תפיסת המדידה</a>
+    <a href="workshop.html">כלי עזר לסדנה</a>
+  </div>
+  <div class="navuser" id="navUser"></div>
+</nav>
+
+<div class="wrap">
+
+  <div class="page-head">
+    <div class="ht">
+      <h1>תפיסת המדידה — איכות עבודת המחלקות לשירותים חברתיים</h1>
+      <div class="tagline">מפת המדדים בנויה על חמישה נושאים מרכזיים, המתפרקים לתתי נושאים. לכל תת נושא משויכים המדדים המודדים אותו בפועל.</div>
+    </div>
+    <div class="pa">
+      <label class="scope">
+        <span>רמת תצוגה</span>
+        <select id="scopeSel" aria-label="בחירת רמת תצוגה"></select>
+      </label>
+      <button class="btn-ghost" id="exportBtn" type="button" title="ייצוא כל ההערכות לקובץ CSV">ייצוא הערכות</button>
+    </div>
+  </div>
+
+  <!-- 01 · עץ הנושאים -->
+  <section class="card">
+    <div class="card-head">
+      <h2>מפת הנושאים ותתי הנושאים <span class="hint">חמישה נושאים · <span class="num">17</span> תתי נושאים</span></h2>
+      <button class="toggle" id="cntToggle" type="button" aria-pressed="false">
+        <span class="sw" aria-hidden="true"></span>
+        <span>הצג מדדים קיימים בכל תת נושא</span>
+      </button>
+    </div>
+
+    <p class="lead">
+      סמנו בכל תת נושא <b>👍</b> אם הוא חשוב למדידה בעיניכם, או <b>👎</b> אם פחות.
+      הסימונים נשמרים אצלכם בדפדפן ומיוצאים יחד עם דירוגי המדדים בכפתור «ייצוא הערכות».
+    </p>
+    <div class="votesum" id="voteSum" hidden></div>
+
+    <div class="tree-bar">
+      <div class="legend" id="heatLegend" hidden>
+        <span>מספר מדדים:</span>
+        <span class="sc">
+          <i style="background:var(--heat-0)"></i><i style="background:var(--heat-1)"></i>
+          <i style="background:var(--heat-2)"></i><i style="background:var(--heat-3)"></i>
+          <i style="background:var(--heat-4)"></i>
+        </span>
+        <span class="num">0</span><span>—</span><span class="num">7</span>
+      </div>
+    </div>
+
+    <div class="tree" id="tree">
+      <div class="root">
+        איכות עבודת המחלקה לשירותים חברתיים
+        <span class="rs">תפיסת המדידה · אגף בכיר איכות, פיקוח ובקרה</span>
+      </div>
+      <div class="stem"></div>
+      <div class="cols" id="treeCols"></div>
+    </div>
+  </section>
+
+  <!-- 02 · משפך המיפוי -->
+  <section class="card">
+    <h2>תהליך מיפוי האינדיקטורים</h2>
+    <p class="lead">מהמיפוי הרחב מול בעלי העניין ועד המדדים שעולים היום במערכת המדידה. עברו עם העכבר על <span class="num">i</span> לצד כל שלב להסבר.</p>
+    <div class="funnel" id="funnel"></div>
+  </section>
+
+  <!-- 03 · מקורות נתונים -->
+  <section class="card">
+    <h2>מקורות הנתונים</h2>
+    <p class="lead">מספר המדדים לפי מערכת מקור. הפיזור מלמד על התלות התפעולית של מפת המדדים.</p>
+    <div class="bars" id="srcBars"></div>
+  </section>
+
+  <!-- 04 · רשימת המדדים -->
+  <section class="sect">
+    <h2>המדדים במערכת <span class="hint" id="cntLabel"></span></h2>
+    <p class="lead">
+      לכל מדד מוצג הערך העדכני ברמת התצוגה שנבחרה, מקור הנתונים ותדירות העדכון.
+      לחיצה על כרטיס פותחת את הגדרת המדד, גרף המגמה, ואת טופס הדירוג שלכם.
+    </p>
+
+    <div class="filters">
+      <label class="search">
+        <input type="search" id="q" placeholder="חיפוש מדד…" aria-label="חיפוש מדד">
+        <svg viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      </label>
+      <select class="fsel" id="themeSel" aria-label="סינון לפי נושא"></select>
+      <select class="fsel" id="subSel" aria-label="סינון לפי תת נושא"></select>
+      <div class="chips" style="margin-inline-start:auto">
+        <button class="chip" id="dataToggle" type="button">רק מדדים עם נתונים</button>
+        <button class="chip" id="rateToggle" type="button">רק מדדים שטרם דירגתי</button>
+      </div>
+      <div class="viewseg" id="viewSeg" role="group" aria-label="צורת תצוגה">
+        <button type="button" data-v="cards" class="on">כרטיסים</button>
+        <button type="button" data-v="table">טבלה</button>
+      </div>
+    </div>
+
+    <div id="list"></div>
+  </section>
+
+  <div class="foot">
+    מצפן רשויות מקומיות · מפת מדדים להערכת איכות עבודת המחלקות לשירותים חברתיים ·
+    הנתונים מוצגים ברמה ארצית וברמת נפה
+  </div>
+</div>
+
+<!-- מודאל מדד -->
+<div class="ovl" id="ovl" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+  <div class="modal" id="modal"></div>
+</div>
+
+<!-- שער כניסה -->
+<div class="ovl gate" id="gate" role="dialog" aria-modal="true" aria-labelledby="gTitle">
+  <form class="modal gatebox" id="gateForm">
+    <h3 id="gTitle">ברוכים הבאים למצפן רשויות מקומיות</h3>
+    <p>לפני שמתחילים — נשמח לדעת מי אתם. השם מלווה את ההערכות שתיתנו למדדים, כדי שנוכל לאסוף אותן יחד בסוף הסדנה.</p>
+    <label class="fld">
+      <span>שם מלא</span>
+      <input type="text" id="gName" required autocomplete="name" placeholder="לדוגמה: ישראל ישראלי">
+    </label>
+    <label class="fld">
+      <span>נפה <small>(רשות — נקבע גם כרמת התצוגה הראשונית)</small></span>
+      <select id="gDistrict"></select>
+    </label>
+    <div class="gate-actions">
+      <button class="btn-primary" type="submit">כניסה</button>
+    </div>
+  </form>
+</div>
+
+<script src="assets/data.js?v=20260812-2"></script>
+<script src="assets/concept.js?v=20260812-2"></script>
 </body>
 </html>

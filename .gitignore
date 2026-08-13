@@ -1,2 +1,7 @@
 # Local working files — not part of the deployed app
 *.pdf
+_reference/
+_t.html
+
+# Raw source data (lives in the parent folder; compiled into assets/data.js)
+*.csv
