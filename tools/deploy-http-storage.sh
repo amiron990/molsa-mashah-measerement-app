@@ -31,18 +31,40 @@ if [ -n "${SUB:-}" ]; then
   az account set --subscription "$SUB"
 fi
 
-SUB_ID="$(az account show --query id -o tsv 2>/dev/null || true)"
+# רשימת המנויים ב-CLI מגיעה ממטמון ומכילה לפעמים מנויים שכבר אינם קיימים, ולכן
+# בודקים כל אחד בקריאה אמיתית ל-ARM ובוחרים את הראשון שבאמת עונה.
+usable() {
+  az account set --subscription "$1" 2>/dev/null || return 1
+  az group list --query "[0].name" -o tsv >/dev/null 2>&1
+}
 
-# אם המנוי הפעיל אינו זמין לחשבון — בוחרים אוטומטית את הראשון שכן זמין,
-# כדי שלא יהיה מה למלא ביד.
-if [ -z "$SUB_ID" ] || ! az account list --refresh --query "[?id=='$SUB_ID'] | length(@)" -o tsv | grep -q '^1$'; then
-  PICK="$(az account list --refresh --query "[?state=='Enabled'] | [0].id" -o tsv 2>/dev/null || true)"
-  if [ -z "$PICK" ]; then
-    echo "לא נמצא מנוי פעיל לחשבון הזה. הריצו 'az login' והריצו את הסקריפט שוב." >&2
-    exit 1
-  fi
-  az account set --subscription "$PICK"
-  SUB_ID="$PICK"
+SUB_ID=""
+if [ -n "${SUB:-}" ]; then
+  usable "$SUB" && SUB_ID="$SUB"
+else
+  CUR="$(az account show --query id -o tsv 2>/dev/null || true)"
+  for c in $CUR $(az account list --query "[?state=='Enabled'].id" -o tsv 2>/dev/null || true); do
+    if usable "$c"; then SUB_ID="$c"; break; fi
+  done
+fi
+
+if [ -z "$SUB_ID" ]; then
+  cat >&2 <<'ERR'
+
+לא נמצא מנוי שאפשר לפרוס אליו. המנויים שרשומים כאן אינם נגישים לחשבון —
+בדרך כלל כי ההזדהות פגה, או שהמנוי יושב ב-tenant אחר.
+
+הריצו לפי הסדר:
+
+    az login
+    az account list --refresh --output table
+    bash tools/deploy-http-storage.sh
+
+אם הטבלה יוצאת ריקה, למשתמש אין מנוי ב-tenant הזה. בפורטל, בתפריט המשתמש
+למעלה מימין, החליפו Directory ל-tenant שבו נמצא המנוי, אתחלו את ה-Cloud Shell
+והריצו שוב.
+ERR
+  exit 1
 fi
 
 SUB_NAME="$(az account show --query name -o tsv)"
