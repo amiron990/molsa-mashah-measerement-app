@@ -20,10 +20,8 @@
   var NATIONAL = META.national || 'ארצי';
 
   /* ---------- אחסון מקומי: משתמש + הערכות ----------
-     כל דירוג נשמר בדפדפן וניתן לייצוא ל-CSV.
-     כשיוחלט לאן נאספים הנתונים — מלאו כתובת ב-SUBMIT_URL
-     וכל שמירה תישלח גם לשם (POST עם גוף JSON). */
-  var SUBMIT_URL = '';
+     כל דירוג נשמר בדפדפן וניתן לייצוא ל-CSV, ובמקביל נשלח לגיליון
+     דרך assets/collect.js (אם הוגדרה שם כתובת קליטה). */
   var STORE_KEY = 'kyd_molsa_compass_v1';
   var store = loadStore();
 
@@ -63,40 +61,30 @@
     submitVote(theme, sub, v);
   }
 
-  /* שליחה לשרת — פעילה רק כש-SUBMIT_URL מוגדר */
+  /* ---------- שליחה לגיליון ---------- */
+  function collect(ev) {
+    if (!window.KYD || !KYD.collect) return;
+    ev.name = (store.user && store.user.name) || '';
+    ev.district = (store.user && store.user.district) || '';
+    KYD.collect.send(ev);
+  }
+
   function submitRating(id, r) {
-    if (!SUBMIT_URL || !window.fetch) return;
     var d = INDICATORS.filter(function (x) { return x.id == id; })[0] || {};
-    try {
-      fetch(SUBMIT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user: (store.user && store.user.name) || '',
-          district: (store.user && store.user.district) || '',
-          indicatorId: Number(id), indicatorName: d.name || '',
-          theme: d.theme || '', sub: d.sub || '',
-          kind: 'indicator',
-          stars: r.stars || 0, note: r.note || '', ts: r.ts
-        })
-      }).catch(function () {});
-    } catch (e) {}
+    collect({
+      kind: 'ratings', ts: r.ts,
+      indicatorId: Number(id), indicatorName: d.name || '',
+      theme: d.theme || '', sub: d.sub || '',
+      stars: r.stars || 0, note: r.note || ''
+    });
   }
 
   function submitVote(theme, sub, v) {
-    if (!SUBMIT_URL || !window.fetch) return;
-    try {
-      fetch(SUBMIT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user: (store.user && store.user.name) || '',
-          district: (store.user && store.user.district) || '',
-          kind: 'sub', theme: theme, sub: sub,
-          vote: v, ts: new Date().toISOString()
-        })
-      }).catch(function () {});
-    } catch (e) {}
+    collect({ kind: 'subvotes', theme: theme, sub: sub, vote: v });
+  }
+
+  function submitSession() {
+    collect({ kind: 'sessions', screen: 'תפיסת המדידה', ua: navigator.userAgent });
   }
 
   /* ---------- עזרי נתונים ---------- */
@@ -997,6 +985,7 @@
     var dist = $('#gDistrict').value;
     store.user = { name: name, district: dist, since: (store.user && store.user.since) || new Date().toISOString() };
     saveStore();
+    submitSession();
     $('#gate').classList.remove('on');
     document.body.style.overflow = '';
     state.scope = dist || NATIONAL;
@@ -1052,6 +1041,7 @@
       state.scope = store.user.district;
     }
 
+    if (window.KYD && KYD.collect) KYD.collect.mountPill('#navSync');
     renderScopeSel();
     renderUserBar();
     renderTree();

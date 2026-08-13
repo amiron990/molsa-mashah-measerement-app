@@ -95,6 +95,20 @@ a:hover{text-decoration:underline}
 }
 .navuser button:hover{background:rgba(255,255,255,.24)}
 
+/* חיווי שמירת התשובות בגיליון */
+.navsync[hidden]{display:none}
+.navsync{display:flex;align-items:center}
+.navsync .sync{
+  display:inline-flex;align-items:center;gap:6px;white-space:nowrap;cursor:pointer;
+  border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.1);color:#fff;
+  border-radius:999px;padding:3px 11px;font-family:var(--font);font-size:11.5px;transition:.15s;
+}
+.navsync .sync::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;flex:0 0 auto}
+.navsync .sync:hover{background:rgba(255,255,255,.22)}
+.navsync .sync.ok{color:#C8F3DF;border-color:rgba(200,243,223,.45)}
+.navsync .sync.wait{color:#FFE9B5;border-color:rgba(255,233,181,.5)}
+.navsync .sync.off{color:#FFC9C9;border-color:rgba(255,201,201,.5)}
+
 /* ===== פריסה ========================================================== */
 .wrap{max-width:1360px;margin:0 auto;padding:0 26px 70px}
 

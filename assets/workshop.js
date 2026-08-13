@@ -19,8 +19,7 @@
   var DASH_URL = DASH_PATH;
   var DASH_HTTP = 'http:' + DASH_PATH;
 
-  /* יעד לאיסוף התשובות (POST עם גוף JSON). ריק = שמירה מקומית בלבד. */
-  var SUBMIT_URL = '';
+  /* התשובות נשמרות מקומית ונשלחות לגיליון דרך assets/collect.js */
   var STORE_KEY = 'kyd_molsa_workshop_v1';
   var USER_KEY = 'kyd_molsa_compass_v1';   /* הזדהות משותפת עם מסך תפיסת המדידה */
 
@@ -147,20 +146,47 @@
     saveStore();
     submitAns(qid, a);
   }
+  /* ---------- שליחה לגיליון ---------- */
+  function collect(ev) {
+    if (!window.KYD || !KYD.collect) return;
+    ev.name = (user && user.name) || '';
+    ev.district = (user && user.district) || '';
+    KYD.collect.send(ev);
+  }
+
+  /* אירוע לכל פריט, ולא אובייקט אחד: שאלת כן/לא מתפרקת לנושאים,
+     ואפשרות עם שאלת המשך מקבלת שורה משלה עם התשובה שנכתבה תחתיה. */
   function submitAns(qid, a) {
-    if (!SUBMIT_URL || !window.fetch) return;
-    var f = findQ(qid);
-    try {
-      fetch(SUBMIT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user: (user && user.name) || '', district: (user && user.district) || '',
-          screen: f.screen, qid: qid, question: f.q.t,
-          answer: a.v, other: a.other || '', ts: a.ts
-        })
-      }).catch(function () {});
-    } catch (e) {}
+    var f = findQ(qid), q = f.q;
+    var base = { kind: 'answers', ts: a.ts, screen: f.screen, qid: qid, question: q.t };
+
+    function row(optionKey, answer, detail) {
+      var ev = { optionKey: optionKey, answer: answer, detail: detail || '' };
+      for (var k in base) ev[k] = base[k];
+      collect(ev);
+    }
+
+    if (q.type === 'themes') {
+      var map = a.v || {};
+      themeNames().forEach(function (t) { if (map[t]) row(t, map[t]); });
+      return;
+    }
+
+    var v = (q.type === 'multi') ? (a.v || []).join(' | ') : (a.v || '');
+    row('', v, a.other || '');
+
+    (q.opts || []).forEach(function (op) {
+      if (!oFollow(op)) return;
+      var val = oVal(op), sv = (a.sub || {})[val];
+      if (sv && sv.join) sv = sv.join(' | ');
+      var so = (a.subOther || {})[val] || '';
+      if (!String(sv || '').trim() && !String(so).trim()) return;
+      row(val, sv || '', so);
+    });
+  }
+
+  function submitSession() {
+    collect({ kind: 'sessions', screen: 'כלי עזר לסדנה', ua: navigator.userAgent });
   }
   function findQ(qid) {
     for (var i = 0; i < SCREENS.length; i++) {
@@ -418,6 +444,7 @@
       since: (user && user.since) || new Date().toISOString()
     };
     saveUser();
+    submitSession();
     $('#gate').classList.remove('on');
     document.body.style.overflow = '';
     renderUserBar();
@@ -583,6 +610,7 @@
 
   /* ---------- אתחול ---------- */
   function init() {
+    if (window.KYD && KYD.collect) KYD.collect.mountPill('#navSync');
     setupDash();
 
     var st = $('#steps');
