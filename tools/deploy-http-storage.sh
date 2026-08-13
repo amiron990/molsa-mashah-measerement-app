@@ -13,16 +13,43 @@
 #      cd molsa-mashah-measerement-app
 #      bash tools/deploy-http-storage.sh
 #
-#  לעדכון האתר בעתיד — git pull והרצה חוזרת של אותו סקריפט.
+#  לבחירת מנוי מסוים:  SUB="<שם או מזהה>" bash tools/deploy-http-storage.sh
+#  לעדכון האתר בעתיד — git pull והרצה חוזרת. הכתובת נשארת זהה.
 # ============================================================================
 set -euo pipefail
 
 RG="${RG:-rg-molsa-workshop}"
 LOC="${LOC:-westeurope}"
-SA="${SA:-molsaworkshop$(date +%s | tail -c 6)}"   # שם חשבון אחסון — ייחודי גלובלית
 
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STAGE="$(mktemp -d)"
+
+# ---- המנוי הפעיל -----------------------------------------------------------
+# המנוי שנבחר כברירת מחדל ב-Cloud Shell אינו תמיד זה שיש בו הרשאות, ולכן בודקים
+# מראש במקום להיכשל באמצע עם SubscriptionNotFound.
+if [ -n "${SUB:-}" ]; then
+  az account set --subscription "$SUB"
+fi
+
+if ! az account show -o none 2>/dev/null; then
+  echo "לא נמצא מנוי פעיל. הריצו 'az login' ואז הריצו את הסקריפט שוב." >&2
+  exit 1
+fi
+
+SUB_ID="$(az account show --query id -o tsv)"
+SUB_NAME="$(az account show --query name -o tsv)"
+if ! az account list --refresh --query "[?id=='$SUB_ID'] | length(@)" -o tsv | grep -q '^1$'; then
+  echo >&2
+  echo "המנוי הפעיל ($SUB_NAME) אינו זמין לחשבון שלכם. אלה המנויים שכן:" >&2
+  echo >&2
+  az account list --refresh --output table >&2
+  echo >&2
+  echo "בחרו מתוך הרשימה והריצו שוב:" >&2
+  echo "    az account set --subscription \"<שם המנוי>\"" >&2
+  echo "    bash tools/deploy-http-storage.sh" >&2
+  exit 1
+fi
+echo "==> מנוי פעיל: $SUB_NAME"
 
 echo "==> אוסף את קובצי האתר"
 cp "$SRC/index.html" "$SRC/workshop.html" "$STAGE/"
@@ -32,28 +59,24 @@ cp "$SRC/assets/"*.css "$SRC/assets/"*.js "$STAGE/assets/"
 echo "==> קבוצת משאבים: $RG ($LOC)"
 az group create -n "$RG" -l "$LOC" -o none
 
-echo "==> חשבון אחסון: $SA — עם HTTP מאופשר"
-az storage account create \
-  --name "$SA" --resource-group "$RG" --location "$LOC" \
-  --sku Standard_LRS --kind StorageV2 --min-tls-version TLS1_2 \
-  --https-only false \
-  --allow-blob-public-access true \
-  -o none
+# בהרצה חוזרת משתמשים בחשבון האחסון הקיים, כדי שכתובת האתר לא תשתנה
+EXISTING="$(az storage account list -g "$RG" --query '[0].name' -o tsv 2>/dev/null || true)"
+SA="${SA:-${EXISTING:-molsaworkshop$(date +%s | tail -c 6)}}"
+
+if [ "$SA" = "${EXISTING:-}" ]; then
+  echo "==> חשבון אחסון קיים: $SA — מעדכן את התוכן"
+else
+  echo "==> יוצר חשבון אחסון: $SA — עם HTTP מאופשר"
+  az storage account create --name "$SA" --resource-group "$RG" --location "$LOC" --sku Standard_LRS --kind StorageV2 --min-tls-version TLS1_2 --https-only false --allow-blob-public-access true -o none
+fi
 
 KEY="$(az storage account keys list -n "$SA" -g "$RG" --query '[0].value' -o tsv)"
 
 echo "==> מפעיל אירוח אתר סטטי"
-az storage blob service-properties update \
-  --account-name "$SA" --account-key "$KEY" \
-  --static-website --index-document index.html --404-document index.html \
-  -o none
+az storage blob service-properties update --account-name "$SA" --account-key "$KEY" --static-website --index-document index.html --404-document index.html -o none
 
 echo "==> מעלה את הקבצים"
-az storage blob upload-batch \
-  --account-name "$SA" --account-key "$KEY" \
-  --source "$STAGE" --destination '$web' --overwrite \
-  --content-cache-control 'no-cache' \
-  -o none
+az storage blob upload-batch --account-name "$SA" --account-key "$KEY" --source "$STAGE" --destination '$web' --overwrite --content-cache-control 'no-cache' -o none
 
 rm -rf "$STAGE"
 
