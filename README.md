@@ -82,6 +82,33 @@ proxy לא יעזור כי ל-Azure אין גישה לרשת הפנימית.
      (`http://<כתובת-המחשב>:8770/workshop.html`). לפתיחת הפורט למשתתפים, פעם אחת כמנהל:
      `netsh advfirewall firewall add rule name="KYD workshop 8770" dir=in action=allow protocol=TCP localport=8770`
    - לשימוש קבוע: אירוח התיקייה על שרת פנימי ב-HTTP (IIS). ראו למטה.
+### אירוח ענני ב-HTTP (Azure Storage static website)
+
+Azure Static Web Apps מחייב HTTPS ואי אפשר לכבות זאת — לכן הדשבורד לא ייטען שם
+במסגרת. **Azure Storage static website** כן מאפשר HTTP, ברגע ש-"Secure transfer
+required" מכובה, והוא אירוח סטטי בענן בעלות זניחה.
+
+הדרך המהירה, בלי להתקין דבר — Azure Cloud Shell (bash) בפורטל:
+
+```bash
+git clone https://github.com/amiron990/molsa-mashah-measerement-app.git
+cd molsa-mashah-measerement-app
+bash tools/deploy-http-storage.sh
+```
+
+הסקריפט יוצר קבוצת משאבים וחשבון אחסון עם `--https-only false`, מפעיל אירוח סטטי,
+מעלה את הקבצים ומדפיס את כתובת ה-HTTP. לעדכון — `git pull` והרצה חוזרת.
+
+הכתובת ציבורית וללא הצפנה. להגבלת גישה לכתובות ה-IP של המשרד בלבד:
+
+```bash
+az storage account network-rule add -g <RG> --account-name <SA> --ip-address <CIDR>
+az storage account update -g <RG> -n <SA> --default-action Deny
+```
+
+> ייתכן ש-Azure Policy בארגון אוסר יצירת חשבון אחסון ללא Secure transfer. במקרה כזה
+> צריך חריג מצוות הענן, או ללכת על האירוח הפנימי שלמטה.
+
 ### אירוח פנימי ב-IIS (הפתרון הרוחבי)
 
 הכלי הוא אתר סטטי — HTML/CSS/JS בלבד, בלי שרת אפליקציה ובלי בסיס נתונים. די בכך:
