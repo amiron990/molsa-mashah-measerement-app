@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/app.css?v=20260813-3">
+<link rel="stylesheet" href="assets/app.css?v=20260813-4">
 <style>
   html,body{height:100%}
   body{display:flex;flex-direction:column;height:100vh;overflow:hidden}
@@ -61,6 +61,35 @@
     font-family:var(--font);font-size:11.5px;font-weight:500;color:var(--n4);cursor:pointer;transition:.15s;
   }
   .ws aside .hd .exp:hover{border-color:var(--blue);color:var(--blue)}
+
+  /* מצב שני חלונות — הדשבורד בחלון נפרד, השאלות תופסות את כל הרוחב */
+  .winpanel{
+    position:absolute;inset:0;background:#fff;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:11px;padding:30px;text-align:center;
+  }
+  .winpanel[hidden]{display:none}
+  .winpanel .x{position:absolute;top:10px;inset-inline-end:12px;border:0;background:none;color:var(--n3);font-size:13px;cursor:pointer}
+  .winpanel .h{font-size:17px;font-weight:700;color:var(--n5)}
+  .winpanel .b{font-size:13px;color:var(--n3);line-height:1.65;max-width:52ch}
+  .winpanel .tip{font-size:12px;color:var(--n4);background:var(--n1);border:1px solid var(--n2);border-radius:8px;padding:7px 12px}
+  .winpanel .lk{font-size:12px;color:var(--blue);text-decoration:none}
+  .winpanel .lk:hover{text-decoration:underline}
+
+  main.ws.wmode.opened .dash{display:none}
+  main.ws.wmode.opened aside{max-width:none}
+  .winbar{
+    display:flex;align-items:center;gap:8px;padding:8px 12px;
+    border-bottom:1px solid var(--line);background:#F1F9FE;font-size:12px;color:var(--n4);
+  }
+  .winbar[hidden]{display:none}
+  .winbar .dot{width:7px;height:7px;border-radius:50%;background:#0F8A5F;flex:0 0 auto}
+  .winbar .tx{flex:1 1 auto;min-width:0;font-weight:500}
+  .winbar button{
+    border:1px solid var(--line-strong);background:#fff;border-radius:6px;padding:3px 8px;
+    font-family:var(--font);font-size:11px;color:var(--n4);cursor:pointer;transition:.15s;
+  }
+  .winbar button:hover{border-color:var(--blue);color:var(--blue)}
+  .winbar button[hidden]{display:none}
 
   /* כפתורי מעבר בין מסכי הדשבורד */
   .steps{display:flex;gap:6px;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--n1)}
@@ -184,12 +213,18 @@
               referrerpolicy="no-referrer-when-downgrade"
               allow="fullscreen; clipboard-read; clipboard-write" hidden></iframe>
 
-      <!-- מוצג רק כשההטמעה חסומה מראש (למשל דף HTTPS מול דשבורד HTTP) -->
-      <div class="pending" id="pending" hidden>
-        <div class="h" id="pendHead">הדשבורד לא נטען</div>
-        <div id="pendBody">ודאו שאתם מחוברים לרשת הפנימית של המשרד.</div>
+      <!-- כשההטמעה לא מצליחה: מעבר לעבודה בשני חלונות -->
+      <div class="winpanel" id="winPanel" hidden>
+        <button type="button" class="x" id="winDismiss" aria-label="סגירה והמתנה">✕</button>
+        <div class="h" id="winHead">הדשבורד ייפתח בחלון נפרד</div>
+        <div class="b" id="winBody"></div>
+        <button class="btn-primary" id="winOpen" type="button">פתיחת הדשבורד בחלון צמוד</button>
+        <div class="tip">
+          לאחר הפתיחה הצמידו את שני החלונות זה לצד זה:
+          <b>Win + ←</b> בחלון אחד ו-<b>Win + →</b> בשני.
+        </div>
         <code id="dashUrl"></code>
-        <a class="btn-ghost" id="pendOpen" href="#" target="_blank" rel="noopener">פתיחת הדשבורד בלשונית חדשה ↗</a>
+        <a class="lk" id="pendOpen" href="#" target="_blank" rel="noopener">או פתיחה בלשונית רגילה ↗</a>
       </div>
 
       <!-- הודעה לא חוסמת: הדשבורד ממשיך להיטען מאחוריה -->
@@ -205,6 +240,13 @@
       <span class="t">שאלות מכווינות</span>
       <span class="prog" id="prog"></span>
       <button class="exp" id="wsExport" type="button" title="ייצוא כל התשובות לקובץ CSV">ייצוא תשובות</button>
+    </div>
+    <div class="winbar" id="winBar" hidden>
+      <span class="dot" aria-hidden="true"></span>
+      <span class="tx">הדשבורד פתוח בחלון נפרד</span>
+      <button type="button" id="winFocus">הבאה לחזית</button>
+      <button type="button" id="winReload">רענון</button>
+      <button type="button" id="winBack">החזרה לתוך הדף</button>
     </div>
     <div class="steps" id="steps"></div>
     <div class="bd" id="qbody"></div>
@@ -230,7 +272,7 @@
   </form>
 </div>
 
-<script src="assets/data.js?v=20260813-3"></script>
-<script src="assets/workshop.js?v=20260813-3"></script>
+<script src="assets/data.js?v=20260813-4"></script>
+<script src="assets/workshop.js?v=20260813-4"></script>
 </body>
 </html>

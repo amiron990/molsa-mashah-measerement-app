@@ -398,40 +398,115 @@
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
   }
 
-  /* ---------- אתחול ---------- */
-  function init() {
-    var f = $('#dashFrame'), pend = $('#pending'), slow = $('#slow');
-    var isHttps = location.protocol === 'https:';
+  /* ---------- הדשבורד: הטמעה, ואם היא נחסמת — עבודה בשני חלונות ----------
+     דף HTTPS לא רשאי להטמיע מסגרת HTTP, ואין הגדרה בשרת שמבטלת זאת. לעומת זאת
+     פתיחת חלון נפרד ב-HTTP מותרת תמיד — ולכן זו דרך העקיפה שעובדת מכל מקום. */
+  var dashWin = null, dashTimer = null, watchTimer = null;
+
+  function dashOpen() { return !!(dashWin && !dashWin.closed); }
+
+  function openDashWindow() {
+    var w = Math.max(880, Math.round(screen.availWidth * 0.58));
+    var h = Math.max(600, screen.availHeight - 60);
+    dashWin = window.open(DASH_HTTP, 'gapAnalyzer',
+      'width=' + w + ',height=' + h + ',left=0,top=0,resizable=yes,scrollbars=yes');
+    if (!dashWin) {
+      $('#winBody').innerHTML = '<b>הדפדפן חסם את פתיחת החלון.</b> אשרו את פתיחת החלונות ' +
+        'הקופצים לאתר הזה ונסו שוב, או פתחו את הדשבורד בלשונית רגילה בקישור שלמטה.';
+      return;
+    }
+    dashWin.focus();
+    store.winMode = true; saveStore();
+    applyDashMode();
+    clearInterval(watchTimer);
+    watchTimer = setInterval(function () {
+      if (!dashOpen()) { clearInterval(watchTimer); applyDashMode(); }
+    }, 1500);
+  }
+
+  function applyDashMode() {
+    var main = document.querySelector('main.ws'), f = $('#dashFrame');
+    var win = store.winMode === true, opened = dashOpen();
+
+    main.classList.toggle('wmode', win);
+    main.classList.toggle('opened', win && opened);
+    $('#winBar').hidden = !(win && opened);
+    $('#winPanel').hidden = !(win && !opened);
+
+    if (win) {
+      f.hidden = true;
+      if (f.getAttribute('src')) f.setAttribute('src', 'about:blank');
+      clearTimeout(dashTimer);
+      $('#slow').hidden = true;
+      $('#winHead').textContent = 'הדשבורד עובד בחלון נפרד';
+      if (!$('#winBody').innerHTML) setWinBody();
+    } else {
+      loadFrame();
+    }
+  }
+
+  function setWinBody() {
+    $('#winBody').innerHTML = location.protocol === 'https:'
+      ? 'הדף מוגש ב-HTTPS והדשבורד ב-HTTP, ולכן הדפדפן חוסם את הטמעתו במסגרת. ' +
+        'פתיחה בחלון נפרד אינה כפופה למגבלה הזו — השאלות יישארו כאן, בחלון שלצדו.'
+      : 'הדשבורד לא נטען בתוך המסגרת. אפשר לעבוד בשני חלונות: הדשבורד בחלון אחד, השאלות בשני.';
+  }
+
+  function loadFrame() {
+    var f = $('#dashFrame');
+    f.hidden = false;
+    f.src = DASH_URL;
+    $('#winPanel').hidden = true;
+    $('#slow').hidden = true;
+    clearTimeout(dashTimer);
+    /* אם המסגרת לא נטענה — מציעים את מצב שני החלונות */
+    dashTimer = setTimeout(function () {
+      setWinBody();
+      $('#winHead').textContent = 'הדשבורד לא נטען במסגרת';
+      $('#winPanel').hidden = false;
+    }, location.protocol === 'https:' ? 6000 : 14000);
+  }
+
+  function setupDash() {
+    var f = $('#dashFrame');
     $('#dashOpen').href = DASH_HTTP;
     $('#pendOpen').href = DASH_HTTP;
-    $('#dashUrl').textContent = location.protocol + DASH_PATH;
+    $('#dashUrl').textContent = DASH_HTTP;
 
-    /* בדף HTTPS הדשבורד נטען מ-https://biportal. אם ל-Report Server אין
-       חיבור HTTPS, המסגרת תישאר ריקה — ואז מסבירים למה ומה לעשות. */
-    if (isHttps) {
-      $('#slowMsg').innerHTML =
-        '<b>הדשבורד לא יכול להיטען כאן.</b> הדף מוגש ב-HTTPS ו-biportal ב-HTTP, ' +
-        'והדפדפן חוסם הטמעה כזו — זו מגבלת אבטחה בדפדפן, ואין הגדרה בשרת שמבטלת אותה. ' +
-        'שלוש דרכים לעקוף: להריץ את הכלי מכתובת HTTP (השרת המקומי או שרת פנימי), ' +
-        'לפתוח את הדשבורד בלשונית נפרדת (הקישור בכותרת), ' +
-        'או להתיר לאתר הזה תוכן לא מאובטח בדפדפן ' +
-        '(לחיצה על סמל המנעול ← הגדרות אתר ← Insecure content ← Allow, ואז רענון).';
-    }
-
-    f.src = DASH_URL;
-    f.hidden = false;
-    pend.hidden = true;
-
-    /* טעינה איטית — הודעה לא חוסמת בתחתית המסגרת, הדשבורד ממשיך להיטען מאחוריה */
-    var t = setTimeout(function () { slow.hidden = false; }, isHttps ? 8000 : 15000);
-    f.addEventListener('load', function () { clearTimeout(t); slow.hidden = true; });
-
-    $('#dashReload').addEventListener('click', function () {
-      slow.hidden = true;
-      clearTimeout(t);
-      f.src = DASH_URL + '&_=' + new Date().getTime();
-      t = setTimeout(function () { slow.hidden = false; }, 15000);
+    f.addEventListener('load', function () {
+      clearTimeout(dashTimer);
+      if (store.winMode !== true) { $('#winPanel').hidden = true; $('#slow').hidden = true; }
     });
+
+    $('#winOpen').addEventListener('click', openDashWindow);
+    $('#winDismiss').addEventListener('click', function () {
+      $('#winPanel').hidden = true;
+      $('#slow').hidden = false;
+    });
+    $('#winFocus').addEventListener('click', function () {
+      if (dashOpen()) dashWin.focus(); else openDashWindow();
+    });
+    $('#winReload').addEventListener('click', function () {
+      if (dashOpen()) { dashWin.location.href = DASH_HTTP; dashWin.focus(); }
+      else openDashWindow();
+    });
+    $('#winBack').addEventListener('click', function () {
+      store.winMode = false; saveStore();
+      if (dashOpen()) dashWin.close();
+      clearInterval(watchTimer);
+      applyDashMode();
+    });
+    $('#dashReload').addEventListener('click', function () {
+      if (store.winMode === true) { openDashWindow(); return; }
+      loadFrame();
+    });
+
+    applyDashMode();
+  }
+
+  /* ---------- אתחול ---------- */
+  function init() {
+    setupDash();
 
     var st = $('#steps');
     SCREENS.forEach(function (sc, i) {
