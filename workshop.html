@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/app.css?v=20260812-3">
+<link rel="stylesheet" href="assets/app.css?v=20260813-1">
 <style>
   html,body{height:100%}
   body{display:flex;flex-direction:column;height:100vh;overflow:hidden}
@@ -31,7 +31,19 @@
   }
   .ws .pending[hidden]{display:none}
   .ws .pending .h{font-size:16px;font-weight:700;color:var(--n4)}
-  .ws .pending code{font-family:var(--mono);background:#fff;border:1px solid var(--line);border-radius:6px;padding:2px 8px;font-size:12px}
+  .ws .pending code{font-family:var(--mono);background:#fff;border:1px solid var(--line);border-radius:6px;padding:4px 10px;font-size:11.5px;direction:ltr;unicode-bidi:isolate;word-break:break-all;max-width:100%}
+  .ws .dash .hd .rl{
+    margin-inline-start:auto;border:1px solid var(--line-strong);background:#fff;border-radius:7px;padding:3px 9px;
+    font-family:var(--font);font-size:11.5px;font-weight:500;color:var(--n4);cursor:pointer;transition:.15s;
+  }
+  .ws .dash .hd .rl:hover{border-color:var(--blue);color:var(--blue)}
+  .ws .dash .hd .rl + a.ext{margin-inline-start:0}
+  .ws .slow{
+    position:absolute;inset-inline:12px;bottom:12px;background:#FFF6E0;border:1px solid #F0D48A;
+    border-radius:9px;padding:9px 12px;font-size:12px;line-height:1.55;color:#6B4E06;text-align:center;
+  }
+  .ws .slow[hidden]{display:none}
+  .ws .slow .lk{border:0;background:none;padding:0;font:inherit;color:#0E7EBE;text-decoration:underline;cursor:pointer}
 
   /* ---- פאנל השאלות (צד שמאל) ---- */
   .ws aside{
@@ -164,14 +176,27 @@
     <div class="hd">
       <span class="t">Gap Analyzer — מחלקות לשירותים חברתיים</span>
       <span class="s">Power BI Report Server · המעבר בין מסכי הדשבורד נעשה בתוך הדשבורד</span>
+      <button class="rl" id="dashReload" type="button" title="טעינת הדשבורד מחדש">טעינה מחדש ⟳</button>
       <a class="ext" id="dashOpen" href="#" target="_blank" rel="noopener">פתיחה בלשונית חדשה ↗</a>
     </div>
     <div class="fw">
-      <iframe id="dashFrame" title="דשבורד Gap Analyzer" referrerpolicy="no-referrer-when-downgrade" hidden></iframe>
-      <div class="pending" id="pending">
-        <div class="h">הדשבורד לא נטען</div>
-        <div>ודאו שאתם מחוברים לרשת הפנימית של המשרד.</div>
+      <iframe id="dashFrame" title="דשבורד Gap Analyzer"
+              referrerpolicy="no-referrer-when-downgrade"
+              allow="fullscreen; clipboard-read; clipboard-write" hidden></iframe>
+
+      <!-- מוצג רק כשההטמעה חסומה מראש (למשל דף HTTPS מול דשבורד HTTP) -->
+      <div class="pending" id="pending" hidden>
+        <div class="h" id="pendHead">הדשבורד לא נטען</div>
+        <div id="pendBody">ודאו שאתם מחוברים לרשת הפנימית של המשרד.</div>
+        <code id="dashUrl"></code>
         <a class="btn-ghost" id="pendOpen" href="#" target="_blank" rel="noopener">פתיחת הדשבורד בלשונית חדשה ↗</a>
+      </div>
+
+      <!-- הודעה לא חוסמת: הדשבורד ממשיך להיטען מאחוריה -->
+      <div class="slow" id="slow" hidden>
+        הדשבורד עדיין נטען. אם הוא לא מופיע — ודאו חיבור לרשת הפנימית, נסו
+        <button type="button" class="lk" onclick="document.getElementById('dashReload').click()">טעינה מחדש</button>
+        או פתחו אותו בלשונית נפרדת.
       </div>
     </div>
   </section>
@@ -206,7 +231,7 @@
   </form>
 </div>
 
-<script src="assets/data.js?v=20260812-3"></script>
-<script src="assets/workshop.js?v=20260812-3"></script>
+<script src="assets/data.js?v=20260813-1"></script>
+<script src="assets/workshop.js?v=20260813-1"></script>
 </body>
 </html>

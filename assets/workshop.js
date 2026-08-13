@@ -9,7 +9,9 @@
   /* ---------- הגדרות ---------- */
   /* כתובת הדשבורד ב-Report Server. rs:Embed=true פותח אותו במצב הטמעה (ללא תפריטי הפורטל). */
   var DASH_BASE = 'http://biportal/Reports/powerbi/BokerTovManager/Gap_Analyzer_Mashah';
-  var DASH_URL = DASH_BASE + '?rs:Embed=true';
+  /* בדוח Power BI ב-Report Server הפרמטר הוא rs:embed באותיות קטנות
+     (rs:Embed בגדולה שייך לדוחות מעומדים/RDL ולא פותח דוח PBIX במצב הטמעה). */
+  var DASH_URL = DASH_BASE + '?rs:embed=true';
 
   /* יעד לאיסוף התשובות (POST עם גוף JSON). ריק = שמירה מקומית בלבד. */
   var SUBMIT_URL = '';
@@ -392,17 +394,37 @@
 
   /* ---------- אתחול ---------- */
   function init() {
-    var f = $('#dashFrame'), pend = $('#pending');
+    var f = $('#dashFrame'), pend = $('#pending'), slow = $('#slow');
     $('#dashOpen').href = DASH_URL;
     $('#pendOpen').href = DASH_URL;
-    if (DASH_URL) {
-      f.src = DASH_URL;
-      f.hidden = false;
-      pend.hidden = true;
-      /* אם הדשבורד לא נטען (מחוץ לרשת הפנימית / חסימת הטמעה) — מציגים הודעה עם קישור */
-      var t = setTimeout(function () { pend.hidden = false; }, 12000);
-      f.addEventListener('load', function () { clearTimeout(t); pend.hidden = true; });
+    $('#dashUrl').textContent = DASH_URL;
+
+    /* דף ב-HTTPS לא יכול להטמיע מקור HTTP — הדפדפן חוסם בשקט (mixed content).
+       במקרה כזה לא מנסים לטעון בכלל, ומסבירים מה לעשות. */
+    var blocked = location.protocol === 'https:' && DASH_URL.indexOf('http://') === 0;
+    if (blocked) {
+      $('#pendHead').textContent = 'הדפדפן חוסם את הטמעת הדשבורד';
+      $('#pendBody').textContent = 'הדף נטען ב-HTTPS והדשבורד מוגש ב-HTTP, ולכן ההטמעה נחסמת. ' +
+        'הריצו את הכלי מכתובת HTTP (למשל מקומית) או פתחו את הדשבורד בלשונית נפרדת.';
+      pend.hidden = false;
+      f.hidden = true;
+      return;
     }
+
+    f.src = DASH_URL;
+    f.hidden = false;
+    pend.hidden = true;
+
+    /* טעינה איטית — הודעה לא חוסמת בתחתית המסגרת, הדשבורד ממשיך להיטען מאחוריה */
+    var t = setTimeout(function () { slow.hidden = false; }, 15000);
+    f.addEventListener('load', function () { clearTimeout(t); slow.hidden = true; });
+
+    $('#dashReload').addEventListener('click', function () {
+      slow.hidden = true;
+      clearTimeout(t);
+      f.src = DASH_URL + '&_=' + new Date().getTime();
+      t = setTimeout(function () { slow.hidden = false; }, 15000);
+    });
 
     var st = $('#steps');
     SCREENS.forEach(function (sc, i) {
