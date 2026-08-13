@@ -52,13 +52,22 @@
       id: 'map',
       name: 'מפת מדדים רשותית',
       qs: [
-        { id: 'm1', t: 'איפה זה משתלב בתהליכי העבודה שלך?', type: 'multi', other: true,
+        { id: 'm1', t: 'מהן שגרות העבודה שלך שבהן הכלי משתלב?', type: 'multi', other: true,
           hint: 'אפשר לסמן יותר מאפשרות אחת',
-          opts: ['ישיבת מנהלי נפות', 'ישיבת מפקחים', 'פורום עם מנהלי מחוז'] },
-        { id: 'm2', t: 'מה אפשר ללמוד על הרשויות בנפה בנושא משאבי אנוש?', type: 'text',
-          ph: 'מה עולה מהמפה בנושא כוח אדם, איוש תקנים, תחלופה…' },
-        { id: 'm3', t: 'מה פעולות ההמשך שצריך לעשות כדי להשלים את הבנת המצב?', type: 'multi', other: true,
-          opts: ACTIONS },
+          opts: ['ישיבת מנהלי נפות', 'ישיבת מפקחים', 'פורום עם מנהלי מחוז',
+                 'פגישות עבודה עם מנהלי מחלקות', 'גיבוש תדירות הפיקוח',
+                 'בניית תכנית עבודה שנתית', 'בחירת רשות לפיילוט של תכנית חדשה'] },
+        { id: 'm2', t: 'מה אפשר ללמוד על הרשויות בנפה בנושא גיוס ושימור עובדים ומניעת שחיקה?', type: 'text',
+          ph: 'מה עולה מהמפה בנושא גיוס, שימור, תחלופה ושחיקה…' },
+        { id: 'm3', t: 'איזה מידע חסר לך כדי להשלים את תמונת המצב?', type: 'multi', other: true,
+          opts: [
+            { v: 'נתונים מדשבורד נוסף של המשרד',
+              follow: { type: 'text', ph: 'איזה דשבורד?' } },
+            { v: 'מדדים נוספים שצריך להוסיף למערכת',
+              follow: { type: 'text', ph: 'אילו מדדים?' } },
+            { v: 'בירור מידע חיצוני שאינו קיים במערכות',
+              follow: { type: 'multi', other: true, opts: ['שיחה עם מפקח', 'שיחה עם המש"ח'] } }
+          ] },
         { id: 'm4', t: 'מהי צורת המדידה של כל רשות שמלמדת אותך בצורה הטובה ביותר?', type: 'single', other: true,
           opts: ['ביחס לכלל הרשויות בארץ', 'ביחס לרשויות בקבוצת הדומים',
                  'ביחס לקבוצת דומים אבל רלוונטית יותר', 'ביחס לרשות עצמה בשנה האחרונה'] },
@@ -182,10 +191,53 @@
     return a.v === 'אחר';
   }
 
-  /* ---------- בניית השאלות ---------- */
+  /* ---------- בניית השאלות ----------
+     אפשרות היא מחרוזת, או אובייקט {v, follow} כשבחירתה פותחת שאלת המשך. */
+  function oVal(op) { return (op && op.v) ? op.v : op; }
+  function oFollow(op) { return (op && op.follow) ? op.follow : null; }
+
+  function subOf(qid, opt) { return ((ansOf(qid) || {}).sub || {})[opt]; }
+  function subOtherOf(qid, opt) { return ((ansOf(qid) || {}).subOther || {})[opt] || ''; }
+  function setSub(qid, opt, v, key) {
+    var a = ansOf(qid) || {}, src = a[key || 'sub'] || {}, m = {};
+    for (var k in src) m[k] = src[k];
+    m[opt] = v;
+    var patch = {}; patch[key || 'sub'] = m;
+    setAns(qid, patch);
+  }
+
+  /* שאלת ההמשך שנפתחת מתחת לאפשרות שנבחרה */
+  function followHtml(q, val, fol, a, k) {
+    var sub = subOf(q.id, val), h = ['<div class="follow">'];
+
+    if (fol.type === 'text') {
+      h.push('<input type="text" data-q="' + q.id + '" data-role="subtext" data-opt="' + esc(val) + '"' +
+        ' placeholder="' + esc(fol.ph || 'פרטו…') + '" value="' + esc(sub || '') + '">');
+    } else {
+      var fmulti = fol.type !== 'single';
+      var fopts = fol.opts.slice();
+      if (fol.other) fopts.push('אחר');
+      fopts.forEach(function (fo) {
+        var on = fmulti ? !!(sub && sub.indexOf(fo) >= 0) : sub === fo;
+        h.push('<label class="op sm' + (on ? ' on' : '') + '">' +
+          '<input type="' + (fmulti ? 'checkbox' : 'radio') + '" name="sub_' + q.id + '_' + k + '"' +
+          ' data-q="' + q.id + '" data-role="' + (fmulti ? 'submulti' : 'subsingle') + '"' +
+          ' data-opt="' + esc(val) + '" value="' + esc(fo) + '"' + (on ? ' checked' : '') + '>' +
+          '<span>' + esc(fo) + '</span></label>');
+      });
+      if (fol.other) {
+        var picked = fmulti ? !!(sub && sub.indexOf('אחר') >= 0) : sub === 'אחר';
+        h.push('<input type="text" data-q="' + q.id + '" data-role="subother" data-opt="' + esc(val) + '"' +
+          ' placeholder="פרטו…" value="' + esc(subOtherOf(q.id, val)) + '"' + (picked ? '' : ' hidden') + '>');
+      }
+    }
+    h.push('</div>');
+    return h.join('');
+  }
+
   function qHtml(q, i) {
     var a = ansOf(q.id) || {}, o = [];
-    o.push('<div class="qz' + (answered(q) ? ' done' : '') + '" data-qz="' + q.id + '">');
+    o.push('<div class="qz' + (answered(q) ? ' done' : '') + '" data-qz="' + q.id + '" data-ix="' + i + '">');
     o.push('<div class="qt"><span class="ix">' + (i + 1) + '</span><span>' + esc(q.t) + '</span></div>');
     if (q.hint) o.push('<div class="qh">' + esc(q.hint) + '</div>');
 
@@ -216,13 +268,15 @@
       var opts = q.opts.slice();
       if (q.other) opts.push('אחר');
       o.push('<div class="opts">');
-      opts.forEach(function (op) {
-        var on = multi ? !!(a.v && a.v.indexOf(op) >= 0) : a.v === op;
+      opts.forEach(function (op, k) {
+        var val = oVal(op), fol = oFollow(op);
+        var on = multi ? !!(a.v && a.v.indexOf(val) >= 0) : a.v === val;
         o.push('<label class="op' + (on ? ' on' : '') + '">' +
           '<input type="' + (multi ? 'checkbox' : 'radio') + '" name="q_' + q.id + '"' +
           ' data-q="' + q.id + '" data-role="' + (multi ? 'multi' : 'single') + '"' +
-          ' value="' + esc(op) + '"' + (on ? ' checked' : '') + '>' +
-          '<span>' + esc(op) + '</span></label>');
+          ' value="' + esc(val) + '"' + (on ? ' checked' : '') + '>' +
+          '<span>' + esc(val) + '</span></label>');
+        if (fol && on) o.push(followHtml(q, val, fol, a, k));
       });
       o.push('</div>');
       if (q.other) {
@@ -293,16 +347,23 @@
     });
   }
 
+  /* עדכון קל בזמן הקלדה — בלי לבנות מחדש, כדי לא לאבד את מוקד הכתיבה */
   function syncQz(qid) {
     var q = findQ(qid).q;
     var zone = document.querySelector('[data-qz="' + qid + '"]');
     if (!zone) return;
     zone.classList.toggle('done', answered(q));
-    var oth = zone.querySelector('.oth');
-    if (oth) oth.hidden = !hasOther(q);
-    Array.prototype.forEach.call(zone.querySelectorAll('.op'), function (lb) {
-      lb.classList.toggle('on', lb.querySelector('input').checked);
-    });
+  }
+
+  /* בנייה מחדש של השאלה — לאחר בחירה, כשצריך לפתוח או לסגור שאלת המשך */
+  function renderQz(qid) {
+    var zone = document.querySelector('[data-qz="' + qid + '"]');
+    if (!zone) return;
+    var q = findQ(qid).q;
+    var ix = parseInt(zone.getAttribute('data-ix'), 10) || 0;
+    var tmp = document.createElement('div');
+    tmp.innerHTML = qHtml(q, ix);
+    zone.parentNode.replaceChild(tmp.firstChild, zone);
   }
 
   /* ---------- זיהוי המשתמש (משותף עם מסך תפיסת המדידה) ---------- */
@@ -384,8 +445,19 @@
           });
         } else {
           var v = qq.type === 'multi' ? (a.v || []).join(' | ') : (a.v || '');
-          if (!String(v).trim() && !String(a.other || '').trim()) return;
-          rows.push([uName, uDist, sc.name, qq.id, qq.t, '', v, a.other || '', a.ts || ''].map(q).join(','));
+          if (String(v).trim() || String(a.other || '').trim()) {
+            rows.push([uName, uDist, sc.name, qq.id, qq.t, '', v, a.other || '', a.ts || ''].map(q).join(','));
+          }
+          /* שאלות המשך — שורה לכל אפשרות שנבחרה ונפתחה תחתיה שאלה */
+          (qq.opts || []).forEach(function (op) {
+            if (!oFollow(op)) return;
+            var val = oVal(op), sv = (a.sub || {})[val];
+            if (sv && sv.join) sv = sv.join(' | ');
+            var so = (a.subOther || {})[val] || '';
+            if (!String(sv || '').trim() && !String(so).trim()) return;
+            rows.push([uName, uDist, sc.name, qq.id + '.פירוט', qq.t, val,
+              sv || '', so, a.ts || ''].map(q).join(','));
+          });
         }
       });
     });
@@ -546,8 +618,17 @@
         for (var x in old) m[x] = old[x];
         m[t.getAttribute('data-theme')] = t.value;
         setAns(qid, { v: m });
+      } else if (role === 'subsingle') {
+        setSub(qid, t.getAttribute('data-opt'), t.value);
+      } else if (role === 'submulti') {
+        var opt = t.getAttribute('data-opt'), cv = subOf(qid, opt);
+        var sarr = (cv && cv.slice) ? cv.slice() : [];
+        var si = sarr.indexOf(t.value);
+        if (t.checked && si < 0) sarr.push(t.value);
+        if (!t.checked && si >= 0) sarr.splice(si, 1);
+        setSub(qid, opt, sarr);
       } else { return; }
-      syncQz(qid);
+      renderQz(qid);
       updateProgress();
     });
 
@@ -556,11 +637,14 @@
       var t = e.target, qid = t.getAttribute('data-q');
       if (!qid) return;
       var role = t.getAttribute('data-role');
-      if (role !== 'text' && role !== 'othertext') return;
-      clearTimeout(tmr[qid + role]);
-      tmr[qid + role] = setTimeout(function () {
+      if (['text', 'othertext', 'subtext', 'subother'].indexOf(role) < 0) return;
+      var key = qid + role + (t.getAttribute('data-opt') || '');
+      clearTimeout(tmr[key]);
+      tmr[key] = setTimeout(function () {
         if (role === 'text') setAns(qid, { v: t.value });
-        else setAns(qid, { other: t.value });
+        else if (role === 'othertext') setAns(qid, { other: t.value });
+        else if (role === 'subtext') setSub(qid, t.getAttribute('data-opt'), t.value);
+        else setSub(qid, t.getAttribute('data-opt'), t.value, 'subOther');
         syncQz(qid);
         updateProgress();
       }, 400);

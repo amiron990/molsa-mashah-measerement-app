@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/app.css?v=20260813-6">
+<link rel="stylesheet" href="assets/app.css?v=20260813-7">
 <style>
   html,body{height:100%}
   body{display:flex;flex-direction:column;height:100vh;overflow:hidden}
@@ -146,6 +146,19 @@
   .op input{margin:2px 0 0;accent-color:var(--blue);flex:0 0 auto}
   .op.on{border-color:var(--blue);background:#F1F9FE;color:var(--n5);font-weight:500}
 
+  /* שאלת המשך שנפתחת מתחת לאפשרות שנבחרה */
+  .follow{
+    margin:2px 0 4px;padding:8px 10px;display:flex;flex-direction:column;gap:5px;
+    border-inline-start:2px solid var(--blue);background:#F7FBFE;border-radius:0 8px 8px 0;
+  }
+  .follow input[type="text"]{
+    border:1px solid var(--line-strong);border-radius:7px;padding:6px 9px;
+    font-family:var(--font);font-size:12px;color:var(--n5);width:100%;
+  }
+  .follow input[type="text"]:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(6,136,202,.12)}
+  .follow input[type="text"][hidden]{display:none}
+  .op.sm{padding:5px 8px;font-size:12px;background:#fff}
+
   .oth{
     display:block;width:calc(100% - 26px);margin:7px 0 0;margin-inline-start:26px;
     border:1px solid var(--line-strong);border-radius:8px;padding:8px 10px;
@@ -278,7 +291,7 @@
   </form>
 </div>
 
-<script src="assets/data.js?v=20260813-6"></script>
-<script src="assets/workshop.js?v=20260813-6"></script>
+<script src="assets/data.js?v=20260813-7"></script>
+<script src="assets/workshop.js?v=20260813-7"></script>
 </body>
 </html>
