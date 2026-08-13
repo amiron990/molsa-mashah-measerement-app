@@ -12,7 +12,7 @@
   /* ---------- תצורה ----------
      COLLECT_URL — כתובת ה-Web App המסתיימת ב-/exec.
      הקמה: tools/apps-script/README.md. ריק = איסוף מושבת, הכלי עובד רגיל. */
-  var COLLECT_URL = '';
+  var COLLECT_URL = 'https://script.google.com/macros/s/AKfycbwJGfQabO_ZndJd3Wk6Rd9GWk4fcNheVWVVigPVrgnNm_gxQwPZgdoaIIdQUONaNypCmQ/exec';
   var COLLECT_TOKEN = 'molsa-workshop-2026';   /* חייב להיות זהה ל-TOKEN שבסקריפט */
 
   var OUTBOX_KEY = 'kyd_molsa_outbox_v1';
