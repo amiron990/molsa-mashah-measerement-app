@@ -8,10 +8,16 @@
 
   /* ---------- הגדרות ---------- */
   /* כתובת הדשבורד ב-Report Server. rs:Embed=true פותח אותו במצב הטמעה (ללא תפריטי הפורטל). */
-  var DASH_BASE = 'http://biportal/Reports/powerbi/BokerTovManager/Gap_Analyzer_Mashah';
   /* בדוח Power BI ב-Report Server הפרמטר הוא rs:embed באותיות קטנות
      (rs:Embed בגדולה שייך לדוחות מעומדים/RDL ולא פותח דוח PBIX במצב הטמעה). */
-  var DASH_URL = DASH_BASE + '?rs:embed=true';
+  var DASH_PATH = '//biportal/Reports/powerbi/BokerTovManager/Gap_Analyzer_Mashah?rs:embed=true';
+
+  /* כתובת חסרת פרוטוקול: ההטמעה נטענת תמיד באותו פרוטוקול של הדף.
+     דף HTTP → הדשבורד ב-HTTP; דף HTTPS → נסיון ב-HTTPS, כי דפדפן לא מתיר
+     להטמיע HTTP בתוך דף HTTPS. הקישור לפתיחה בלשונית נפרדת נשאר HTTP,
+     שם אין מגבלה כזו. */
+  var DASH_URL = DASH_PATH;
+  var DASH_HTTP = 'http:' + DASH_PATH;
 
   /* יעד לאיסוף התשובות (POST עם גוף JSON). ריק = שמירה מקומית בלבד. */
   var SUBMIT_URL = '';
@@ -395,20 +401,17 @@
   /* ---------- אתחול ---------- */
   function init() {
     var f = $('#dashFrame'), pend = $('#pending'), slow = $('#slow');
-    $('#dashOpen').href = DASH_URL;
-    $('#pendOpen').href = DASH_URL;
-    $('#dashUrl').textContent = DASH_URL;
+    var isHttps = location.protocol === 'https:';
+    $('#dashOpen').href = DASH_HTTP;
+    $('#pendOpen').href = DASH_HTTP;
+    $('#dashUrl').textContent = location.protocol + DASH_PATH;
 
-    /* דף ב-HTTPS לא יכול להטמיע מקור HTTP — הדפדפן חוסם בשקט (mixed content).
-       במקרה כזה לא מנסים לטעון בכלל, ומסבירים מה לעשות. */
-    var blocked = location.protocol === 'https:' && DASH_URL.indexOf('http://') === 0;
-    if (blocked) {
-      $('#pendHead').textContent = 'הדפדפן חוסם את הטמעת הדשבורד';
-      $('#pendBody').textContent = 'הדף נטען ב-HTTPS והדשבורד מוגש ב-HTTP, ולכן ההטמעה נחסמת. ' +
-        'הריצו את הכלי מכתובת HTTP (למשל מקומית) או פתחו את הדשבורד בלשונית נפרדת.';
-      pend.hidden = false;
-      f.hidden = true;
-      return;
+    /* בדף HTTPS הדשבורד נטען מ-https://biportal. אם ל-Report Server אין
+       חיבור HTTPS, המסגרת תישאר ריקה — ואז מסבירים למה ומה לעשות. */
+    if (isHttps) {
+      $('#slowMsg').innerHTML = 'הדשבורד נטען מ-<b>https://biportal</b>. אם הוא לא מופיע, ' +
+        'סימן שה-Report Server מוגש ב-HTTP בלבד — דפדפן לא מתיר להטמיע HTTP בתוך דף HTTPS. ' +
+        'הריצו את הכלי מכתובת HTTP (למשל מהשרת המקומי), או פתחו את הדשבורד בלשונית נפרדת.';
     }
 
     f.src = DASH_URL;
@@ -416,7 +419,7 @@
     pend.hidden = true;
 
     /* טעינה איטית — הודעה לא חוסמת בתחתית המסגרת, הדשבורד ממשיך להיטען מאחוריה */
-    var t = setTimeout(function () { slow.hidden = false; }, 15000);
+    var t = setTimeout(function () { slow.hidden = false; }, isHttps ? 8000 : 15000);
     f.addEventListener('load', function () { clearTimeout(t); slow.hidden = true; });
 
     $('#dashReload').addEventListener('click', function () {
