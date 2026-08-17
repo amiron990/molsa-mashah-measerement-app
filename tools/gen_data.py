@@ -105,10 +105,22 @@ for rows in (nat_rows, dis_rows):
 if unknown:
     print("UNMATCHED SERIES NAMES:", unknown)
 
+# Series that break at a known point: from these months on the values jump in a
+# way that reflects a change in recording rather than in the field, so the tail
+# is dropped. Key is the first month NOT shown.
+CUTOFF = {
+    1031: "2025-05",  # ahuz tefusa be-misgarot
+    1032: "2025-05",  # mushamim lelo nizkakut
+    1035: "2025-12",  # meshech tipul be-pniyat tzibur
+}
+
 # Shared month axis per indicator; values aligned per scope (null where missing).
 series = {}
 for ix_id, scopes in raw.items():
     months = sorted({ym for sc in scopes.values() for ym in sc})
+    cut = CUTOFF.get(ix_id)
+    if cut:
+        months = [m for m in months if m < cut]
     vals = {}
     for scope, pts in scopes.items():
         vals[scope] = [pts.get(m) for m in months]

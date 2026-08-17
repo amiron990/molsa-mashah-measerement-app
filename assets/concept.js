@@ -87,8 +87,13 @@
     collect({ kind: 'sessions', screen: 'תפיסת המדידה', ua: navigator.userAgent });
   }
 
-  /* ---------- עזרי נתונים ---------- */
-  var CORE = INDICATORS.filter(function (d) { return d.core === 1; });
+  /* ---------- עזרי נתונים ----------
+     מוצגים רק מדדים המשויכים לאחד מחמשת נושאי המפה. מדדי הרקע (נושא
+     "מקבלי שירות") נשארים בשכבת הנתונים אך אינם מוצגים במסך. */
+  var THEME_NAMES = THEMES.map(function (t) { return t.name; });
+  var CORE = INDICATORS.filter(function (d) {
+    return d.core === 1 && THEME_NAMES.indexOf(d.theme) >= 0;
+  });
 
   /* סדרה של מדד ברמת תצוגה נתונה → [[YYYY-MM, value], ...] ללא ערכים חסרים */
   function seriesOf(d, scope) {
