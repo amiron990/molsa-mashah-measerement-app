@@ -111,6 +111,7 @@ if unknown:
 CUTOFF = {
     1031: "2025-05",  # ahuz tefusa be-misgarot
     1032: "2025-05",  # mushamim lelo nizkakut
+    1034: "2026-01",  # pniyot tzibur — reporting stops, tail is all zeros
     1035: "2025-12",  # meshech tipul be-pniyat tzibur
 }
 
