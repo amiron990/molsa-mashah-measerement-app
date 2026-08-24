@@ -143,6 +143,32 @@
   .hist .old{color:var(--bad-ink);text-decoration:line-through;opacity:.75}
   .hist .new{color:var(--good-ink)}
 
+  /* ===== חיווי טעינה =====
+     מכסה גם את שער הכניסה: הבקשה הראשונה יוצאת בזמן שהשער עוד מוצג, וצריך
+     להיות ברור שהמערכת עובדת ולא נתקעה. */
+  .mg-load{
+    position:fixed;inset:0;background:rgba(248,248,248,.6);backdrop-filter:blur(2px);
+    z-index:300;display:flex;align-items:center;justify-content:center;
+  }
+  .mg-load[hidden]{display:none}
+  .mg-load .box{
+    display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);
+    border-radius:12px;padding:15px 22px;font-size:14px;font-weight:700;color:var(--n5);
+    box-shadow:0 12px 34px rgba(10,14,39,.16);
+  }
+  .sp{
+    width:19px;height:19px;border-radius:50%;flex:0 0 auto;
+    border:2.5px solid rgba(6,136,202,.18);border-top-color:var(--blue);
+    animation:spin .7s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* מתג «במפה» בחלונית — משתמש ברכיב .toggle של מערכת העיצוב */
+  .mg-f .toggle{align-self:flex-start}
+
+  .mp{font-family:var(--mono);font-size:12px;color:var(--n3)}
+  .mp.on{color:var(--good-ink);font-weight:700}
+
   /* ===== חיווי ===== */
   .toast{
     position:fixed;bottom:22px;inset-inline-start:50%;transform:translateX(50%);
@@ -151,7 +177,6 @@
   }
   .toast.on{opacity:.97}
   .toast.bad{background:var(--bad-ink)}
-  .busy{opacity:.55;pointer-events:none}
   .gate-err{color:var(--bad-ink);font-size:12.5px;min-height:17px;margin:-6px 0 10px}
 
   @media (max-width:760px){
@@ -214,6 +239,12 @@
       <select class="fsel" id="fSub" aria-label="סינון לפי תת נושא"></select>
       <select class="fsel" id="fStatus" aria-label="סינון לפי סטטוס"></select>
       <select class="fsel" id="fSource" aria-label="סינון לפי מקור"></select>
+      <!-- ברירת המחדל: רק מדדים שמופיעים במפת המדידה -->
+      <select class="fsel" id="fMap" aria-label="סינון לפי הופעה במפה">
+        <option value="1" selected>רק מדדים במפה</option>
+        <option value="0">רק שאינם במפה</option>
+        <option value="">במפה ומחוצה לה</option>
+      </select>
       <div class="chips" style="margin-inline-start:auto">
         <button class="chip" id="openOnly" type="button">רק עם הערות פתוחות</button>
         <button class="btn-primary" id="newBtn" type="button">+ מדד חדש</button>
@@ -278,6 +309,10 @@
       <button class="btn-primary" type="submit" id="gBtn">כניסה</button>
     </div>
   </form>
+</div>
+
+<div class="mg-load" id="load" hidden>
+  <div class="box"><span class="sp" aria-hidden="true"></span><span id="loadTx">טוען…</span></div>
 </div>
 
 <div class="toast" id="toast"></div>

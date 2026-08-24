@@ -21,7 +21,7 @@
   var S = {
     who: '', pass: '',
     ind: [], cmt: [], chg: [], lists: {},
-    view: 'ind', sel: null, openOnly: false, busy: false,
+    view: 'ind', sel: null, openOnly: false,
     reply: null      /* מזהה ההערה שתיבת התגובה פתוחה עליה */
   };
 
@@ -41,12 +41,16 @@
     { h: 'תדירות', t: 'combo', src: 'freq' },
     { h: 'כיוון רצוי', t: 'sel', opts: [['1', 'ערך גבוה = טוב'], ['0', 'ערך נמוך = טוב']] },
     { h: 'סטטוס', t: 'list', src: 'סטטוס' },
-    { h: 'אחראי', t: 'text' }
+    { h: 'אחראי', t: 'text' },
+    { h: 'במפה', t: 'toggle', on: 'מוצג במפת המדידה', off: 'אינו מוצג במפה' }
   ];
+
+  /* מדד חדש נפתח כמוצג במפה — אחרת הוא נשמר ומיד נעלם מאחורי מסנן ברירת המחדל */
+  var NEW_DEFAULTS = { 'במפה': '1', 'סטטוס': 'בתהליך פיתוח' };
 
   var STATUSES = ['פעיל', 'בבחינה', 'בתהליך פיתוח', 'יורד'];
 
-  var TBL_COLS = ['מזהה', 'שם המדד', 'נושא', 'תת נושא', 'מקור המידע', 'תדירות', 'סטטוס'];
+  var TBL_COLS = ['מזהה', 'שם המדד', 'נושא', 'תת נושא', 'מקור המידע', 'תדירות', 'סטטוס', 'במפה'];
 
   var ST_CLASS = {
     'פעיל': 'st-active', 'בבחינה': 'st-check',
@@ -74,9 +78,22 @@
     toastTimer = setTimeout(function () { el.className = 'toast'; }, bad ? 5200 : 2600);
   }
 
-  function busy(on) {
-    S.busy = !!on;
-    d.body.classList.toggle('busy', !!on);
+  /* מה מוצג בשכבת הטעינה, לפי הפעולה שרצה */
+  var LOADING = {
+    bootstrap: 'טוען נתונים…',
+    seed: 'מאתחל את רשימת המדדים…',
+    saveIndicator: 'שומר…',
+    retireIndicator: 'מוריד מדד…',
+    addComment: 'שומר הערה…',
+    updateComment: 'מעדכן הערה…',
+    ingest: 'מושך הערות מהסדנה…',
+    'export': 'מייצא…'
+  };
+
+  function busy(on, msg) {
+    var box = $('load');
+    if (on && msg) $('loadTx').textContent = msg;
+    box.hidden = !on;
   }
 
   /** ערכים ייחודיים של שדה, מהגיליון ומ-data.js גם יחד */
@@ -169,7 +186,7 @@
 
   /** מריצה פעולה, מרעננת מה שחזר ומדווחת למשתמש */
   function run(action, extra, okMsg) {
-    busy(true);
+    busy(true, LOADING[action] || 'טוען…');
     return api(action, extra).then(function (r) {
       if (r.indicators) S.ind = r.indicators;
       if (r.comments) S.cmt = r.comments;
@@ -250,8 +267,13 @@
     return n;
   }
 
+  /** ערך «במפה» מנורמל: ריק נחשב «לא במפה» */
+  function inMap(r) { return String(r['במפה']).trim() === '1' ? '1' : '0'; }
+
   function matches(r) {
     var q = $('q').value.trim().toLowerCase();
+    var mp = $('fMap').value;
+    if (mp !== '' && inMap(r) !== mp) return false;
     var pairs = [['fTheme', 'נושא'], ['fSub', 'תת נושא'], ['fStatus', 'סטטוס'], ['fSource', 'מקור המידע']];
     for (var i = 0; i < pairs.length; i++) {
       var v = $(pairs[i][0]).value;
@@ -290,8 +312,9 @@
              String(a['שם המדד']).localeCompare(String(b['שם המדד']), 'he');
     });
 
+    var span = TBL_COLS.length + 2;
     if (!rows.length) {
-      $('indBody').innerHTML = '<tr><td colspan="9" class="empty">אין מדדים תואמים</td></tr>';
+      $('indBody').innerHTML = '<tr><td colspan="' + span + '" class="empty">אין מדדים תואמים</td></tr>';
       return;
     }
 
@@ -307,6 +330,8 @@
         '<td class="mut">' + esc(r['מקור המידע']) + '</td>' +
         '<td class="mut">' + esc(r['תדירות']) + '</td>' +
         '<td>' + stPill(r['סטטוס']) + '</td>' +
+        '<td><span class="mp' + (inMap(r) === '1' ? ' on' : '') + '">' +
+          (inMap(r) === '1' ? '1' : '0') + '</span></td>' +
         '<td><span class="oc' + (n ? '' : ' zero') + '">' + (n || '—') + '</span></td>' +
         '<td class="mut">' + esc(r['עודכן בתאריך']) + '</td>' +
         '</tr>';
@@ -345,6 +370,13 @@
       }).join('');
       return head + '<select id="' + id + '"><option value=""></option>' + o + '</select></label>';
     }
+    if (f.t === 'toggle') {
+      var on = String(val).trim() === '1';
+      return head + '<button type="button" class="toggle' + (on ? ' on' : '') + '" id="' + id +
+             '" data-v="' + (on ? '1' : '0') + '" aria-pressed="' + on + '">' +
+             '<span class="sw" aria-hidden="true"></span>' +
+             '<span class="tx">' + esc(on ? f.on : f.off) + '</span></button>';
+    }
     if (f.t === 'list') {
       /* הרשימה עצמה נבנית אחרי ההצגה — «תת נושא» תלוי בנושא שנבחר */
       return head + '<select id="' + id + '"></select></label>';
@@ -369,7 +401,7 @@
   }
 
   function openDrawer(id) {
-    var r = id ? byId(id) : {};
+    var r = id ? byId(id) : NEW_DEFAULTS;
     S.sel = id || null;
     S.reply = null;
 
@@ -404,6 +436,19 @@
 
     FIELDS.forEach(function (f) {
       if (f.t === 'list' && f.src !== 'subs') fillList(fEl(f.h), listFor(f.src), r[f.h] || '');
+    });
+
+    FIELDS.forEach(function (f) {
+      if (f.t !== 'toggle') return;
+      var b = fEl(f.h);
+      if (!b) return;
+      b.addEventListener('click', function () {
+        var next = b.getAttribute('data-v') === '1' ? '0' : '1';
+        b.setAttribute('data-v', next);
+        b.setAttribute('aria-pressed', next === '1');
+        b.classList.toggle('on', next === '1');
+        b.querySelector('.tx').textContent = next === '1' ? f.on : f.off;
+      });
     });
 
     /* «תת נושא» נגזר מהנושא שנבחר, כדי שלא ייווצר צירוף שאינו קיים בעץ */
@@ -458,7 +503,8 @@
     var data = {};
     FIELDS.forEach(function (f) {
       var el = $('f_' + FIELDS.indexOf(f));
-      if (el) data[f.h] = el.value.trim();
+      if (!el) return;
+      data[f.h] = (f.t === 'toggle') ? el.getAttribute('data-v') : el.value.trim();
     });
     if (id) data['מזהה'] = id;
     var reason = $('f_reason').value.trim();
@@ -744,7 +790,7 @@
   /* ---------- ייצוא ---------- */
 
   function exportInd() {
-    busy(true);
+    busy(true, LOADING['export']);
     api('export').then(function (r) {
       var txt = JSON.stringify(r.indicators, null, 1);
       var blob = new Blob([txt], { type: 'application/json;charset=utf-8' });
@@ -785,7 +831,7 @@
       render();
     });
 
-    ['q', 'fTheme', 'fSub', 'fStatus', 'fSource'].forEach(function (id) {
+    ['q', 'fTheme', 'fSub', 'fStatus', 'fSource', 'fMap'].forEach(function (id) {
       $(id).addEventListener('input', renderInd);
       $(id).addEventListener('change', renderInd);
     });
