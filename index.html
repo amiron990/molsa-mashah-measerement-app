@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/app.css?v=20260813-11">
+<link rel="stylesheet" href="assets/app.css?v=20260824-1">
 </head>
 <body>
 
@@ -23,10 +23,9 @@
   <div class="tabs">
     <span class="sep"></span>
     <a href="index.html" class="on">תפיסת המדידה</a>
-    <a href="workshop.html">כלי עזר לסדנה</a>
+    <a href="manage.html">ניהול מדדים</a>
   </div>
   <div class="navsync" id="navSync" hidden></div>
-  <div class="navuser" id="navUser"></div>
 </nav>
 
 <div class="wrap">
@@ -55,9 +54,15 @@
       </button>
     </div>
 
-    <p class="lead">
+    <!-- שתי הפסקאות: העליונה מוצגת כשהדירוג פעיל, התחתונה כשהוא כבוי.
+         המתג הוא RATING_ON שבראש assets/concept.js. -->
+    <p class="lead" id="treeLeadRate">
       סמנו בכל תת נושא <b>👍</b> אם הוא חשוב למדידה בעיניכם, או <b>👎</b> אם פחות.
       הסימונים נשמרים אצלכם בדפדפן ומיוצאים יחד עם דירוגי המדדים בכפתור «ייצוא הערכות».
+    </p>
+    <p class="lead" id="treeLead" style="display:none">
+      לכל תת נושא מוצג מספר המדדים הקיימים בו. לחיצה על תת נושא מסננת את רשימת
+      המדדים שבתחתית המסך לאותו תת נושא בלבד.
     </p>
     <div class="votesum" id="voteSum" hidden></div>
 
@@ -102,7 +107,7 @@
     <h2>המדדים במערכת <span class="hint" id="cntLabel"></span></h2>
     <p class="lead">
       לכל מדד מוצג הערך העדכני ברמת התצוגה שנבחרה, מקור הנתונים ותדירות העדכון.
-      לחיצה על כרטיס פותחת את הגדרת המדד, גרף המגמה, ואת טופס הדירוג שלכם.
+      לחיצה על כרטיס פותחת את הגדרת המדד ואת גרף המגמה.
     </p>
 
     <div class="filters">
@@ -136,27 +141,9 @@
   <div class="modal" id="modal"></div>
 </div>
 
-<!-- שער כניסה -->
-<div class="ovl gate" id="gate" role="dialog" aria-modal="true" aria-labelledby="gTitle">
-  <form class="modal gatebox" id="gateForm">
-    <h3 id="gTitle">ברוכים הבאים למצפן רשויות מקומיות</h3>
-    <p>לפני שמתחילים — נשמח לדעת מי אתם. השם מלווה את ההערכות שתיתנו למדדים, כדי שנוכל לאסוף אותן יחד בסוף הסדנה.</p>
-    <label class="fld">
-      <span>שם מלא</span>
-      <input type="text" id="gName" required autocomplete="name" placeholder="לדוגמה: ישראל ישראלי">
-    </label>
-    <label class="fld">
-      <span>נפה <small>(רשות — נקבעת גם כרמת התצוגה הראשונית)</small></span>
-      <select id="gDistrict"></select>
-    </label>
-    <div class="gate-actions">
-      <button class="btn-primary" type="submit">כניסה</button>
-    </div>
-  </form>
-</div>
 
-<script src="assets/data.js?v=20260813-11"></script>
-<script src="assets/collect.js?v=20260813-11"></script>
-<script src="assets/concept.js?v=20260813-11"></script>
+<script src="assets/data.js?v=20260824-1"></script>
+<script src="assets/collect.js?v=20260824-1"></script>
+<script src="assets/concept.js?v=20260824-1"></script>
 </body>
 </html>

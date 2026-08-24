@@ -19,6 +19,13 @@
 
   var NATIONAL = META.national || 'ארצי';
 
+  /* ---------- מתג מסך ----------
+     RATING_ON — דירוג המדדים בכוכבים וסימון תתי הנושאים. כבוי: אין סדנה פעילה.
+     ההחזרה לפעולה היא שינוי הערך הזה בלבד, והדירוגים שכבר נאספו נשמרים.
+     שימו לב: שער הזיהוי הוסר מהמסך יחד עם הסדנה, ולכן הפעלה מחדש תצריך
+     להחזיר אותו — אחרת הדירוגים יישלחו לגיליון בלי שם משיב. */
+  var RATING_ON = false;
+
   /* ---------- אחסון מקומי: משתמש + הערכות ----------
      כל דירוג נשמר בדפדפן וניתן לייצוא ל-CSV, ובמקביל נשלח לגיליון
      דרך assets/collect.js (אם הוגדרה שם כתובת קליטה). */
@@ -70,7 +77,7 @@
   }
 
   function submitRating(id, r) {
-    var d = INDICATORS.filter(function (x) { return x.id == id; })[0] || {};
+    var d = SOURCE.filter(function (x) { return x.id == id; })[0] || {};
     collect({
       kind: 'ratings', ts: r.ts,
       indicatorId: Number(id), indicatorName: d.name || '',
@@ -83,17 +90,23 @@
     collect({ kind: 'subvotes', theme: theme, sub: sub, vote: v });
   }
 
-  function submitSession() {
-    collect({ kind: 'sessions', screen: 'תפיסת המדידה', ua: navigator.userAgent });
-  }
-
   /* ---------- עזרי נתונים ----------
      מוצגים רק מדדים המשויכים לאחד מחמשת נושאי המפה. מדדי הרקע (נושא
      "מקבלי שירות") נשארים בשכבת הנתונים אך אינם מוצגים במסך. */
   var THEME_NAMES = THEMES.map(function (t) { return t.name; });
-  var CORE = INDICATORS.filter(function (d) {
-    return d.core === 1 && THEME_NAMES.indexOf(d.theme) >= 0;
-  });
+
+  /* רשימת המדדים. ברירת המחדל היא זו שב-data.js, כדי שהמסך ייצבע מיד וגם
+     בלי רשת; אם נקודת הקליטה מוגדרת, היא מוחלפת ברשימה שבלשונית
+     «אינדיקטורים» שבגיליון — וכך שינוי במסך ניהול המדדים מופיע גם כאן. */
+  var SOURCE = INDICATORS;
+  var CORE = [], SUBCOUNT = {};
+
+  function rebuild() {
+    CORE = SOURCE.filter(function (d) {
+      return d.core === 1 && THEME_NAMES.indexOf(d.theme) >= 0;
+    });
+    SUBCOUNT = countsBySub();
+  }
 
   /* סדרה של מדד ברמת תצוגה נתונה → [[YYYY-MM, value], ...] ללא ערכים חסרים */
   function seriesOf(d, scope) {
@@ -162,7 +175,6 @@
     CORE.forEach(function (d) { m[d.theme + '§' + d.sub] = (m[d.theme + '§' + d.sub] || 0) + 1; });
     return m;
   }
-  var SUBCOUNT = countsBySub();
 
   function heatBucket(n) {
     if (!n) return '0';
@@ -188,6 +200,8 @@
     lbl.title = n ? n + ' מדדים קיימים · לחצו לצפייה' : 'טרם פותחו מדדים לתת נושא זה';
     if (n) lbl.addEventListener('click', function () { focusSub(theme, sub, wrap); });
     wrap.appendChild(lbl);
+
+    if (!RATING_ON) return wrap;
 
     var vt = el('div', 'vt');
     [[1, 'up', 'תת נושא חשוב בעיניי'], [-1, 'dn', 'תת נושא פחות חשוב בעיניי']].forEach(function (o) {
@@ -224,6 +238,7 @@
   function renderVoteSummary() {
     var box = $('#voteSum');
     if (!box) return;
+    if (!RATING_ON) { box.hidden = true; return; }
     var up = 0, dn = 0;
     Object.keys(store.subvotes).forEach(function (k) {
       if (store.subvotes[k].v === 1) up++; else if (store.subvotes[k].v === -1) dn++;
@@ -235,8 +250,11 @@
       '<span class="u">' + up + ' חשובים</span> · <span class="d">' + dn + ' פחות</span>';
   }
 
+  var treeWired = false;
+
   function renderTree() {
     var cols = $('#treeCols');
+    cols.innerHTML = '';
     THEMES.forEach(function (t) {
       var col = el('div', 'tcol');
 
@@ -253,6 +271,9 @@
     });
 
     renderVoteSummary();
+
+    if (treeWired) return;
+    treeWired = true;
 
     var tg = $('#cntToggle'), tree = $('#tree'), lg = $('#heatLegend');
     tg.addEventListener('click', function () {
@@ -351,9 +372,10 @@
     CORE.forEach(function (d) { m[d.source] = (m[d.source] || 0) + 1; });
     var rows = Object.keys(m).map(function (k) { return { k: k, v: m[k] }; })
       .sort(function (a, b) { return b.v - a.v; });
-    var max = rows[0].v;
     var w = $('#srcBars');
     w.innerHTML = '';
+    if (!rows.length) return;
+    var max = rows[0].v;
     rows.forEach(function (r) {
       var row = el('div', 'bar',
         '<div class="lb">' + esc(r.k) + '</div>' +
@@ -527,7 +549,7 @@
     }
 
     var foot = '<div class="ft"><span>' + esc(d.source) + '</span>' +
-      (r ? '<span class="rated">' + starsHtml(r.stars, 'sm') + '</span>'
+      (RATING_ON && r ? '<span class="rated">' + starsHtml(r.stars, 'sm') + '</span>'
          : '<span>' + esc(d.freq) + '</span>') + '</div>';
 
     b.innerHTML = head + body + foot;
@@ -547,7 +569,8 @@
     });
 
     var head = ['שם המדד', 'נושא / תת נושא', 'ערך (' + state.scope + ')', 'נכון ל-',
-      'שינוי שנתי', 'מקור נתונים', 'תדירות', 'הדירוג שלי'];
+      'שינוי שנתי', 'מקור נתונים', 'תדירות'];
+    if (RATING_ON) head.push('הדירוג שלי');
     var h = ['<div class="tblwrap"><table class="tbl"><thead><tr>'];
     head.forEach(function (t) { h.push('<th>' + esc(t) + '</th>'); });
     h.push('</tr></thead><tbody>');
@@ -562,7 +585,7 @@
       h.push('<td>' + (deltaHtml(d) || '<span class="mut">—</span>') + '</td>');
       h.push('<td class="mut">' + esc(d.source) + '</td>');
       h.push('<td class="mut">' + esc(d.freq) + '</td>');
-      h.push('<td>' + starsHtml(r ? r.stars : 0, 'tb') + '</td>');
+      if (RATING_ON) h.push('<td>' + starsHtml(r ? r.stars : 0, 'tb') + '</td>');
       h.push('</tr>');
     });
     h.push('</tbody></table></div>');
@@ -571,7 +594,7 @@
     list.appendChild(wrap);
     wrap.addEventListener('click', function (e) {
       /* דירוג ישירות מהטבלה */
-      var sb = e.target.closest('.stars.tb button');
+      var sb = RATING_ON && e.target.closest('.stars.tb button');
       if (sb) {
         e.stopPropagation();
         var trs = sb.closest('tr[data-id]');
@@ -596,9 +619,12 @@
     var list = $('#list');
     list.innerHTML = '';
     var items = filtered();
-    var rated = CORE.filter(function (d) { return ratingOf(d.id); }).length;
-    $('#cntLabel').innerHTML = items.length + ' מדדים מוצגים מתוך ' + CORE.length +
-      ' · דורגו על ידכם <span class="num" id="ratedN">' + rated + '</span>';
+    var lbl = items.length + ' מדדים מוצגים מתוך ' + CORE.length;
+    if (RATING_ON) {
+      lbl += ' · דורגו על ידכם <span class="num" id="ratedN">' +
+             CORE.filter(function (d) { return ratingOf(d.id); }).length + '</span>';
+    }
+    $('#cntLabel').innerHTML = lbl;
 
     if (state.sub) {
       var bar = el('div', 'filters', '');
@@ -872,7 +898,7 @@
     h += '</div>' + trendChart(d) + '</section>';
 
     /* 3 · הערכה */
-    h += '<section class="msec rate"><h4>הערכה של המדד</h4>' +
+    if (RATING_ON) h += '<section class="msec rate"><h4>הערכה של המדד</h4>' +
       '<div class="rate-sub">עד כמה המדד רלוונטי ושימושי לניהול העבודה בנפה? הדירוג נשמר בדפדפן ומיוצא בסוף הסדנה.</div>' +
       '<div class="row"><span class="lbl">דירוג:</span>' + starsHtml(r.stars) +
       '<button class="clr" type="button" id="rClear">ניקוי</button></div>' +
@@ -886,7 +912,7 @@
     m.scrollTop = 0;
     $('.x', m).addEventListener('click', closeModal);
     wireChart(m);
-    wireRating(m, d);
+    if (RATING_ON) wireRating(m, d);
     $('#ovl').classList.add('on');
     document.body.style.overflow = 'hidden';
   }
@@ -937,9 +963,10 @@
     document.body.style.overflow = '';
   }
 
-  /* ---------- משתמש, רמת תצוגה, ייצוא ---------- */
-  function districts() { return SCOPES.filter(function (s) { return s !== NATIONAL; }); }
+  /* ---------- רמת תצוגה וייצוא ---------- */
 
+  /* בורר «רמת תצוגה» — ארצי או נפה. אינו קשור לסדנה: הוא קובע אילו ערכים
+     וגרפים מוצגים, ולכן נשאר גם אחרי שהדירוג והזיהוי ירדו מהמסך. */
   function renderScopeSel() {
     var sel = $('#scopeSel');
     sel.innerHTML = '';
@@ -956,48 +983,6 @@
     });
   }
 
-  function renderUserBar() {
-    var w = $('#navUser');
-    if (!store.user) { w.innerHTML = ''; return; }
-    w.innerHTML = '<span class="nm">' + esc(store.user.name) + '</span>' +
-      (store.user.district ? '<span class="dv">· ' + esc(store.user.district) + '</span>' : '') +
-      '<button type="button" id="switchUser">החלפת משתמש</button>';
-    $('#switchUser').addEventListener('click', function () { openGate(true); });
-  }
-
-  function openGate(isSwitch) {
-    var sel = $('#gDistrict');
-    sel.innerHTML = '<option value="">כל הארץ</option>';
-    districts().forEach(function (s) {
-      var o = document.createElement('option');
-      o.value = s; o.textContent = s;
-      sel.appendChild(o);
-    });
-    if (store.user) {
-      $('#gName').value = store.user.name || '';
-      sel.value = store.user.district || '';
-    }
-    $('#gate').classList.add('on');
-    document.body.style.overflow = 'hidden';
-    setTimeout(function () { $('#gName').focus(); }, 60);
-    $('#gateForm').dataset.sw = isSwitch ? '1' : '';
-  }
-
-  function submitGate(e) {
-    e.preventDefault();
-    var name = $('#gName').value.trim();
-    if (!name) return;
-    var dist = $('#gDistrict').value;
-    store.user = { name: name, district: dist, since: (store.user && store.user.since) || new Date().toISOString() };
-    saveStore();
-    submitSession();
-    $('#gate').classList.remove('on');
-    document.body.style.overflow = '';
-    state.scope = dist || NATIONAL;
-    $('#scopeSel').value = state.scope;
-    renderUserBar(); renderList();
-  }
-
   function exportCsv() {
     var ids = Object.keys(store.ratings);
     var keys = Object.keys(store.subvotes);
@@ -1006,7 +991,7 @@
       return;
     }
     var byId = {};
-    INDICATORS.forEach(function (d) { byId[d.id] = d; });
+    SOURCE.forEach(function (d) { byId[d.id] = d; });
     var q = function (v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; };
     var uName = (store.user && store.user.name) || '';
     var uDist = (store.user && store.user.district) || '';
@@ -1041,14 +1026,39 @@
   }
 
   /* ---------- אתחול ---------- */
+  /**
+   * טעינת רשימת המדדים מהגיליון. המסך כבר מצויר מ-data.js כשזה קורה, ולכן זה
+   * שדרוג שקט: אם התשובה מגיעה — בונים מחדש; אם לא, נשארים עם מה שיש.
+   */
+  function refreshFromSheet() {
+    var C = window.KYD && KYD.collect;
+    if (!C || !C.enabled() || !C.post) return;
+    C.post({ action: 'indicators' }).then(function (r) {
+      if (!r || !r.indicators || !r.indicators.length) return;
+      SOURCE = r.indicators;
+      rebuild();
+      renderTree();
+      renderSources();
+      renderThemeSel();
+      renderList();
+    }).catch(function () { /* אין רשת או שהלשונית ריקה — data.js ממשיך לשמש */ });
+  }
+
   function init() {
-    if (store.user && store.user.district && SCOPES.indexOf(store.user.district) >= 0) {
-      state.scope = store.user.district;
+    if (window.KYD && KYD.collect) KYD.collect.mountPill('#navSync');
+
+    /* מה שכל תפקידו דירוג — מוסתר ולא נמחק, כדי שההחזרה תהיה מתג אחד */
+    if (!RATING_ON) {
+      ['#rateToggle', '#exportBtn', '#voteSum', '#treeLeadRate'].forEach(function (sel) {
+        var n = $(sel);
+        if (n) n.style.display = 'none';
+      });
+      var lead = $('#treeLead');
+      if (lead) lead.style.display = '';
     }
 
-    if (window.KYD && KYD.collect) KYD.collect.mountPill('#navSync');
+    rebuild();
     renderScopeSel();
-    renderUserBar();
     renderTree();
     renderFunnel();
     renderSources();
@@ -1077,10 +1087,12 @@
       state.dataOnly = !state.dataOnly;
       syncChips(); renderList();
     });
-    $('#rateToggle').addEventListener('click', function () {
-      state.unratedOnly = !state.unratedOnly;
-      syncChips(); renderList();
-    });
+    if (RATING_ON) {
+      $('#rateToggle').addEventListener('click', function () {
+        state.unratedOnly = !state.unratedOnly;
+        syncChips(); renderList();
+      });
+    }
 
     $('#viewSeg').addEventListener('click', function (e) {
       var b = e.target.closest('button');
@@ -1090,15 +1102,14 @@
       renderList();
     });
 
-    bindStarHover();
+    if (RATING_ON) bindStarHover();
 
-    $('#exportBtn').addEventListener('click', exportCsv);
-    $('#gateForm').addEventListener('submit', submitGate);
+    if (RATING_ON) $('#exportBtn').addEventListener('click', exportCsv);
 
     $('#ovl').addEventListener('click', function (e) { if (e.target === this) closeModal(); });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
 
-    if (!store.user) openGate(false);
+    refreshFromSheet();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

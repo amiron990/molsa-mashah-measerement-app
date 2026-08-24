@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>מצפן רשויות מקומיות — ניהול מדדים</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/app.css?v=20260824-1">
+<style>
+  /* ===== מסך הניהול — מה שאין במערכת העיצוב המשותפת ===================== */
+
+  /* שער הכניסה מוסתר עד שברור שאין סיסמה שמורה, כדי לא להבהב בכל טעינה */
+  body.locked .wrap{filter:blur(2px);pointer-events:none;user-select:none}
+
+  .mg-tabs{display:inline-flex;border:1px solid var(--line-strong);border-radius:8px;overflow:hidden}
+  .mg-tabs button{
+    border:0;background:#fff;font-family:var(--font);font-size:13px;color:var(--n4);
+    padding:8px 18px;cursor:pointer;white-space:nowrap;
+  }
+  .mg-tabs button + button{border-inline-start:1px solid var(--n2)}
+  .mg-tabs button:hover{color:var(--blue)}
+  .mg-tabs button.on{background:var(--blue);color:#fff;font-weight:700}
+  .mg-tabs button .c{font-family:var(--mono);font-size:11px;opacity:.75;margin-inline-start:6px}
+
+  /* פס אתחול — מופיע רק כשלשונית האינדיקטורים עדיין ריקה */
+  .mg-seed{
+    background:#FDF6E3;border:1px solid #EBD9A8;border-radius:12px;
+    padding:16px 18px;margin-bottom:18px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;
+  }
+  .mg-seed .tx{flex:1 1 340px;font-size:13.5px;color:#6B5518;line-height:1.6}
+  .mg-seed .tx b{color:#4A3A0C}
+
+  .mg-note{font-size:12.5px;color:var(--n3);margin:0 0 14px}
+
+  /* ===== טבלה ===== */
+  .mg-tbl td.nm{font-weight:700;color:var(--n5);min-width:230px}
+  .mg-tbl td.nm .sb{display:block;font-size:11.5px;color:var(--n3);font-weight:400;margin-top:2px}
+  .mg-tbl td.id{font-family:var(--mono);color:var(--n3);font-size:12px}
+  .mg-tbl td.mut{color:var(--n3);font-size:12.5px}
+
+  .st{font-size:11px;padding:2px 9px;border-radius:999px;white-space:nowrap;font-weight:500}
+  .st-active{background:rgba(68,212,142,.18);color:var(--good-ink)}
+  .st-new{background:rgba(6,136,202,.13);color:var(--blue-deep)}
+  .st-check{background:rgba(248,190,62,.22);color:#8A6516}
+  .st-reword{background:var(--bg-1);color:#2A6A6A}
+  .st-down{background:rgba(242,66,102,.14);color:var(--bad-ink)}
+
+  .oc{font-size:11px;padding:2px 9px;border-radius:999px;white-space:nowrap;font-weight:700;
+      background:rgba(248,190,62,.22);color:#8A6516;font-family:var(--mono)}
+  .oc.zero{background:transparent;color:var(--n3);font-weight:400}
+
+  /* ===== חלונית עריכה ===== */
+  /* transform הוא פיזי ואינו מתהפך עם dir — ולכן כיוון ההסתרה מוגדר לכל כיוון בנפרד */
+  .mg-drawer{
+    position:fixed;inset-block:0;inset-inline-start:0;width:min(620px,100%);
+    background:#fff;box-shadow:0 0 40px rgba(10,14,39,.22);z-index:90;
+    display:flex;flex-direction:column;transform:translateX(-102%);transition:transform .18s ease;
+  }
+  [dir=rtl] .mg-drawer{transform:translateX(102%)}
+  .mg-drawer.on,[dir=rtl] .mg-drawer.on{transform:none}
+  .mg-drawer .dh{
+    padding:18px 24px 14px;border-bottom:1px solid var(--n2);
+    display:flex;align-items:flex-start;justify-content:space-between;gap:14px;
+  }
+  .mg-drawer .dh .bc{font-size:11.5px;color:var(--teal);margin-bottom:3px;font-family:var(--mono)}
+  .mg-drawer .dh h3{font-size:18px;font-weight:700;line-height:1.35}
+  .mg-drawer .db{flex:1 1 auto;overflow:auto;padding:6px 24px 24px}
+  .mg-drawer .df{
+    border-top:1px solid var(--n2);padding:13px 24px;display:flex;gap:9px;align-items:center;flex-wrap:wrap;
+    background:#FCFCFC;
+  }
+  .mg-drawer .df .sp{flex:1 1 auto}
+
+  .mg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0 18px}
+  .mg-f{display:flex;flex-direction:column;gap:5px;margin-bottom:13px}
+  .mg-f > span{font-size:12px;font-weight:500;color:var(--n3)}
+  .mg-f input,.mg-f select,.mg-f textarea{
+    font-family:var(--font);font-size:13.5px;color:var(--n5);background:#fff;
+    border:1px solid var(--line-strong);border-radius:8px;padding:8px 11px;width:100%;
+  }
+  .mg-f textarea{min-height:64px;resize:vertical;line-height:1.6}
+  .mg-f input:focus,.mg-f select:focus,.mg-f textarea:focus{
+    outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(6,136,202,.12);
+  }
+  .mg-f.wide{grid-column:1/-1}
+  .mg-f.req > span{color:var(--bad-ink);font-weight:700}
+  /* מזהה של מדד קיים — מוצג, ולא ניתן לשינוי: הוא הקישור להערות וליומן */
+  .mg-f input.lock{background:var(--n1);color:var(--n3);font-family:var(--mono);cursor:default}
+
+  /* ===== הערות ===== */
+  .cmt{border:1px solid var(--line);border-radius:11px;padding:11px 13px;margin-bottom:9px;background:#fff}
+  .cmt.open{border-inline-start:3px solid var(--warn);background:#FFFDF6}
+  .cmt.done{border-inline-start:3px solid var(--good);background:#F6FDF9}
+  .cmt.rej{border-inline-start:3px solid var(--n3);background:#FAFAFA}
+  .cmt.check{border-inline-start:3px solid var(--blue);background:#F6FBFE}
+  .cmt.reply{margin-inline-start:26px;border-style:dashed;background:#FCFCFC}
+  .cmt .meta{font-size:11.5px;color:var(--n3);display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:5px}
+  .cmt .meta b{color:var(--n4);font-weight:700}
+  .cmt .tx{font-size:13.5px;color:var(--n4);line-height:1.65;white-space:pre-wrap}
+  .cmt .dec{font-size:12.5px;color:var(--good-ink);margin-top:7px;padding-top:7px;border-top:1px solid var(--n2)}
+  .cmt .acts{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
+  .cmt .acts button{
+    border:1px solid var(--line-strong);background:#fff;border-radius:7px;padding:4px 10px;
+    font-family:var(--font);font-size:11.5px;color:var(--n4);cursor:pointer;
+  }
+  .cmt .acts button:hover{border-color:var(--blue);color:var(--blue)}
+  .cmt .acts select,.cmt .acts .cdec{
+    border:1px solid var(--line-strong);border-radius:7px;padding:4px 9px;
+    font-family:var(--font);font-size:11.5px;color:var(--n4);background:#fff;
+  }
+  .cmt .acts .cdec{flex:1 1 180px;min-width:0}
+  .cmt .acts select:focus,.cmt .acts .cdec:focus{outline:none;border-color:var(--blue)}
+  .cmt .src{font-size:10.5px;padding:1px 7px;border-radius:5px;background:var(--bg-1);color:#2A6A6A}
+
+  .thread{margin-bottom:22px}
+  .thread .th{
+    display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;
+    font-size:14px;font-weight:700;color:var(--n5);margin-bottom:9px;
+    padding-bottom:7px;border-bottom:1px solid var(--n2);
+  }
+  .thread .th .id{font-family:var(--mono);font-size:11.5px;color:var(--n3);font-weight:500}
+  .thread .th a{cursor:pointer}
+
+  .newcmt{border:1px dashed var(--line-strong);border-radius:11px;padding:12px 13px;background:#FCFCFC}
+  .newcmt textarea{
+    width:100%;min-height:62px;resize:vertical;font-family:var(--font);font-size:13.5px;
+    border:1px solid var(--line-strong);border-radius:8px;padding:9px 11px;line-height:1.6;background:#fff;
+  }
+  .newcmt textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(6,136,202,.12)}
+  .newcmt .row{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:9px}
+  .newcmt.reply-box{margin-top:9px}
+  .newcmt.new-box{margin-top:12px}
+
+  /* ===== היסטוריה ===== */
+  .hist{font-size:12.5px}
+  .hist .h{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--n2);align-items:baseline}
+  .hist .h .d{font-family:var(--mono);color:var(--n3);flex:0 0 auto;font-size:11.5px}
+  .hist .h .w{color:var(--n4)}
+  .hist .h .f{color:var(--n5);font-weight:500}
+  .hist .old{color:var(--bad-ink);text-decoration:line-through;opacity:.75}
+  .hist .new{color:var(--good-ink)}
+
+  /* ===== חיווי ===== */
+  .toast{
+    position:fixed;bottom:22px;inset-inline-start:50%;transform:translateX(50%);
+    background:var(--n5);color:#fff;padding:10px 20px;border-radius:10px;font-size:13px;font-weight:500;
+    z-index:200;opacity:0;transition:opacity .2s;pointer-events:none;box-shadow:0 8px 26px rgba(10,14,39,.3);
+  }
+  .toast.on{opacity:.97}
+  .toast.bad{background:var(--bad-ink)}
+  .busy{opacity:.55;pointer-events:none}
+  .gate-err{color:var(--bad-ink);font-size:12.5px;min-height:17px;margin:-6px 0 10px}
+
+  @media (max-width:760px){
+    .mg-drawer{width:100%}
+  }
+</style>
+</head>
+<body class="locked">
+
+<nav class="nav">
+  <div class="brand">
+    <svg viewBox="0 0 40 40" aria-hidden="true">
+      <circle cx="20" cy="20" r="17" fill="none" stroke="#fff" stroke-width="2.2" opacity=".9"/>
+      <path d="M20 7.5 L24.2 15.8 L32.5 20 L24.2 24.2 L20 32.5 L15.8 24.2 L7.5 20 L15.8 15.8 Z" fill="#fff" opacity=".95"/>
+    </svg>
+    <span class="bt">מצפן רשויות מקומיות</span>
+  </div>
+  <div class="tabs">
+    <span class="sep"></span>
+    <a href="index.html">תפיסת המדידה</a>
+    <a href="manage.html" class="on">ניהול מדדים</a>
+  </div>
+  <div class="navuser" id="navUser"></div>
+</nav>
+
+<div class="wrap">
+
+  <div class="page-head">
+    <div class="ht">
+      <h1>ניהול מדדים</h1>
+      <div class="tagline">
+        המדדים, ההערות והחלטות הצוות — כולם בגיליון אחד. כל שינוי נרשם ביומן עם השם, המועד והסיבה.
+      </div>
+    </div>
+    <div class="pa">
+      <button class="btn-ghost" id="ingestBtn" type="button" title="סריקה חוזרת של תשובות הסדנה">משיכת הערות מהסדנה</button>
+      <button class="btn-ghost" id="exportBtn" type="button" title="ייצוא המדדים בפורמט של data.js">ייצוא מדדים</button>
+      <button class="btn-ghost" id="reloadBtn" type="button">רענון</button>
+    </div>
+  </div>
+
+  <div id="seedBox"></div>
+
+  <div class="filters">
+    <div class="mg-tabs" id="viewTabs" role="group" aria-label="תצוגה">
+      <button type="button" data-v="ind" class="on">מדדים<span class="c" id="cInd"></span></button>
+      <button type="button" data-v="cmt">הערות<span class="c" id="cCmt"></span></button>
+      <button type="button" data-v="chg">יומן שינויים<span class="c" id="cChg"></span></button>
+    </div>
+  </div>
+
+  <!-- ===== מדדים ===== -->
+  <section id="viewInd">
+    <div class="filters">
+      <label class="search">
+        <input type="search" id="q" placeholder="חיפוש מדד…" aria-label="חיפוש מדד">
+        <svg viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      </label>
+      <select class="fsel" id="fTheme" aria-label="סינון לפי נושא"></select>
+      <select class="fsel" id="fSub" aria-label="סינון לפי תת נושא"></select>
+      <select class="fsel" id="fStatus" aria-label="סינון לפי סטטוס"></select>
+      <select class="fsel" id="fSource" aria-label="סינון לפי מקור"></select>
+      <div class="chips" style="margin-inline-start:auto">
+        <button class="chip" id="openOnly" type="button">רק עם הערות פתוחות</button>
+        <button class="btn-primary" id="newBtn" type="button">+ מדד חדש</button>
+      </div>
+    </div>
+    <div class="tblwrap">
+      <table class="tbl mg-tbl">
+        <thead id="indHead"></thead>
+        <tbody id="indBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===== הערות ===== -->
+  <section id="viewCmt" hidden>
+    <p class="mg-note" id="cmtNote"></p>
+    <div class="filters">
+      <label class="search">
+        <input type="search" id="cq" placeholder="חיפוש בהערות…" aria-label="חיפוש בהערות">
+        <svg viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      </label>
+      <select class="fsel" id="cStatus" aria-label="סינון לפי סטטוס טיפול"></select>
+      <select class="fsel" id="cSource" aria-label="סינון לפי מקור ההערה"></select>
+    </div>
+    <div id="cmtList"></div>
+  </section>
+
+  <!-- ===== יומן שינויים ===== -->
+  <section id="viewChg" hidden>
+    <p class="mg-note">300 הרשומות האחרונות, מהחדשה לישנה. היומן המלא נשמר בלשונית «יומן שינויים» בגיליון.</p>
+    <div class="tblwrap">
+      <table class="tbl mg-tbl">
+        <thead><tr><th>מתי</th><th>מי</th><th>פעולה</th><th>מדד</th><th>שדה</th><th>מ־</th><th>ל־</th><th>סיבה</th></tr></thead>
+        <tbody id="chgBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="foot">
+    מצפן רשויות מקומיות · מסך ניהול · הנתונים נשמרים בגיליון התשובות של הסדנה
+  </div>
+</div>
+
+<!-- חלונית עריכת מדד -->
+<aside class="mg-drawer" id="drawer" aria-label="עריכת מדד"></aside>
+
+<!-- שער כניסה -->
+<div class="ovl gate" id="gate" role="dialog" aria-modal="true" aria-labelledby="gTitle">
+  <form class="modal gatebox" id="gateForm">
+    <h3 id="gTitle">ניהול מדדים</h3>
+    <p>המסך הזה כותב לגיליון. נדרשת סיסמת ניהול, והשם שתזינו נרשם ביומן השינויים לצד כל פעולה.</p>
+    <label class="fld">
+      <span>שם מלא</span>
+      <input type="text" id="gName" required autocomplete="name" placeholder="לדוגמה: ישראל ישראלי">
+    </label>
+    <label class="fld">
+      <span>סיסמת ניהול</span>
+      <input type="password" id="gPass" required autocomplete="current-password">
+    </label>
+    <div class="gate-err" id="gErr"></div>
+    <div class="gate-actions">
+      <button class="btn-primary" type="submit" id="gBtn">כניסה</button>
+    </div>
+  </form>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="assets/data.js?v=20260824-1"></script>
+<script src="assets/collect.js?v=20260824-1"></script>
+<script src="assets/manage.js?v=20260824-1"></script>
+</body>
+</html>

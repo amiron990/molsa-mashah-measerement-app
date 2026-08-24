@@ -4,6 +4,9 @@
  * הקובץ הזה יושב בתוך גיליון Google (תוספים ← Apps Script) וכותב אליו.
  * הוראות הקמה מלאות: tools/apps-script/README.md
  *
+ * ניהול המדדים יושב בקובץ נפרד באותו פרויקט — Manage.gs. כל בקשה שיש בה
+ * שדה action מנותבת אליו מ-doPost.
+ *
  * הכלי שולח מנות של אירועים ב-POST. כל אירוע נכתב פעמיים:
  *   1. upsert לגיליון לפי הסוג שלו — שורה אחת לכל משיב ופריט, תמיד עדכנית.
  *   2. append לגיליון log — היסטוריה מלאה, כולל שינויים שנדרסו.
@@ -81,6 +84,24 @@ function doPost(e) {
     if (!e || !e.postData || !e.postData.contents) return reply({ ok: false, error: 'empty' });
 
     var body = JSON.parse(e.postData.contents);
+
+    /* קריאה ציבורית אחת: רשימת המדדים למסך תפיסת המדידה. מוגנת בטוקן הסדנה
+       ולא בסיסמת הניהול — הרשימה ממילא גלויה ב-assets/data.js. אינה נכנסת
+       לנעילה: זו קריאה בלבד, ואין סיבה שדף ציבורי ימתין מאחורי עריכה. */
+    if (body.action === 'indicators') {
+      if (body.token !== TOKEN) return reply({ ok: false, error: 'bad token' });
+      return reply({ ok: true, indicators: mPublicIndicators() });
+    }
+
+    /* יתר בקשות הניהול מטופלות ב-Manage.gs. הן נושאות סיסמת ניהול, לא את
+       טוקן הסדנה, ולכן הן מנותבות לפני בדיקת הטוקן — ותחת אותה נעילה, כדי
+       שעריכה מהמסך לא תיפגש עם תשובה שנשלחת באותו רגע מהסדנה. */
+    if (body.action) {
+      var mlock = LockService.getScriptLock();
+      mlock.waitLock(25000);
+      try { return manageApi(body); } finally { mlock.releaseLock(); }
+    }
+
     if (body.token !== TOKEN) return reply({ ok: false, error: 'bad token' });
 
     var events = body.events || [];

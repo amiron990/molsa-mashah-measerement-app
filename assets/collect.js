@@ -154,9 +154,33 @@
   }
 
   w.KYD = w.KYD || {};
+  /* מסך הניהול פונה לאותה נקודת קליטה. הוא קורא את הכתובת מכאן במקום
+     להחזיק עותק שני שלה, כדי שהחלפת פריסה תישאר שינוי בשורה אחת. */
+  function url() { return COLLECT_URL; }
+
+  /* פנייה חד-פעמית לנקודת הקליטה, עם הטוקן — לבקשות שאינן אירועי סדנה
+     ואינן עוברות בתור. משמשת את מסך תפיסת המדידה למשיכת רשימת המדדים. */
+  function post(body) {
+    if (!enabled() || !w.fetch) return Promise.reject(new Error('איסוף מושבת'));
+    var payload = { token: COLLECT_TOKEN };
+    for (var k in body) payload[k] = body[k];
+
+    return fetch(COLLECT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    }).then(function (res) {
+      return res.text();
+    }).then(function (t) {
+      var j = JSON.parse(t);
+      if (j.ok === false) throw new Error(j.error || 'שגיאה');
+      return j;
+    });
+  }
+
   w.KYD.collect = {
     send: send, flush: flush, status: status, onChange: onChange,
-    mountPill: mountPill, rid: rid, enabled: enabled
+    mountPill: mountPill, rid: rid, enabled: enabled, url: url, post: post
   };
 
   w.addEventListener('online', function () { tries = 0; notify(); schedule(200); });
