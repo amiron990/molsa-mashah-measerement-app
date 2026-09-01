@@ -428,7 +428,7 @@
     html += '</div><div class="df">' +
       '<button class="btn-primary" type="button" id="dSave">' + (isNew ? 'הוספת מדד' : 'שמירה') + '</button>' +
       (isNew ? '' : '<button class="btn-ghost" type="button" id="dRetire">הורדת מדד</button>') +
-      '<span class="sp"></span><button class="btn-ghost" type="button" id="dCancel">סגירה</button></div>';
+      '<span class="spacer"></span><button class="btn-ghost" type="button" id="dCancel">סגירה</button></div>';
 
     var dr = $('drawer');
     dr.innerHTML = html;
