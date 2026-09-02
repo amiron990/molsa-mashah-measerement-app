@@ -1,35 +1,55 @@
 # -*- coding: utf-8 -*-
-"""Builds assets/data.js for the 'Compass for Local Authorities' app from the source CSVs."""
+"""Builds assets/data.js for the 'Compass for Local Authorities' app from the source CSVs.
+
+Values come from one file, נתונים.csv, which carries all three reporting levels:
+national, district (מחוז) and sub-district (נפה). Its `Pop_Category_Heb` column
+is the level and `קטגוריה` is the name.
+
+Level and name together form the scope key, because the two are not unique on
+their own: ירושלים is both a district and a sub-district, with different series.
+Keying by name alone would have silently merged them.
+"""
 import csv, io, json, os, collections
 
-SRC = u"c:/Users/Amir Ron/OneDrive - Know Your Data/BABI/Dashboard Open Data/Clients/Molsa/\u05de\u05e9\u05d7\u05d9\u05dd"
-OUT = SRC + u"/\u05db\u05dc\u05d9 \u05e2\u05d6\u05e8 \u05dc\u05e1\u05d3\u05e0\u05d4 - \u05de\u05e0\u05d4\u05dc\u05d9 \u05e0\u05e4\u05d5\u05ea/assets/data.js"
+SRC = u"c:/Users/Amir Ron/OneDrive - Know Your Data/BABI/Dashboard Open Data/Clients/Molsa/משחים"
+APP = SRC + u"/כלי עזר לסדנה - מנהלי נפות"
+OUT = APP + u"/assets/data.js"
 
-NATIONAL = u"\u05d0\u05e8\u05e6\u05d9"  # "ארצי"
+NATIONAL = u"ארצי"
+DISTRICT = u"מחוז"
+SUBDIST = u"נפה"
+
+# סדר הרמות בבורר רמת התצוגה, ושם הקבוצה שמעליהן
+LEVELS = [
+    (NATIONAL, u"ארצי"),
+    (DISTRICT, u"מחוזות"),
+    (SUBDIST, u"נפות"),
+]
+
+SEP = u"§"   # מפריד בין רמה לשם במפתח הסקופ
 
 
-def rd(name):
-    return list(csv.DictReader(io.open(os.path.join(SRC, name), encoding='utf-8-sig')))
+def rd(name, root=None):
+    return list(csv.DictReader(io.open(os.path.join(root or SRC, name), encoding='utf-8-sig')))
 
 
-tax_rows = rd(u"\u05de\u05e1\u05e4\u05e8 \u05d0\u05d9\u05e0\u05d3\u05e7\u05d8\u05d5\u05e8\u05d9\u05dd \u05dc\u05e4\u05d9 \u05e0\u05d5\u05e9\u05d0 \u05d5\u05ea\u05ea \u05e0\u05d5\u05e9\u05d0.csv")
-ix_rows = rd(u"\u05e8\u05e9\u05d9\u05de\u05ea \u05de\u05d3\u05d3\u05d9\u05dd \u05de\u05e9\u05d7\u05d9\u05dd.csv")
-nat_rows = rd(u"\u05e0\u05ea\u05d5\u05e0\u05d9\u05dd \u05d0\u05e8\u05e6\u05d9\u05d9\u05dd \u05de\u05d3\u05d3\u05d9 \u05de\u05d7\u05dc\u05e7\u05d5\u05ea.csv")
-dis_rows = rd(u"\u05e0\u05ea\u05d5\u05e0\u05d9 \u05e0\u05e4\u05d5\u05ea \u05de\u05d3\u05d3\u05d9 \u05de\u05d7\u05dc\u05e7\u05d5\u05ea.csv")
+tax_rows = rd(u"מספר אינדקטורים לפי נושא ותת נושא.csv")
+ix_rows = rd(u"רשימת מדדים משחים.csv")
+val_rows = rd(u"נתונים.csv", APP)
 
 # ---- taxonomy -------------------------------------------------------------
 THEME_ORDER = [
-    u"\u05ea\u05e9\u05ea\u05d9\u05d5\u05ea \u05e2\u05d1\u05d5\u05d3\u05d4",
-    u"\u05ea\u05e4\u05e7\u05d5\u05d3 \u05de\u05e7\u05e6\u05d5\u05e2\u05d9 \u05e9\u05dc \u05d4\u05e2\u05d5\u05d1\u05d3\u05d9\u05dd",
-    u"\u05ea\u05e4\u05e7\u05d5\u05d3 \u05de\u05e7\u05e6\u05d5\u05e2\u05d9 \u05e9\u05dc \u05d4\u05de\u05d7\u05dc\u05e7\u05d4",
-    u"\u05e9\u05d9\u05e8\u05d5\u05ea \u05dc\u05ea\u05d5\u05e9\u05d1",
-    u"\u05d0\u05e7\u05dc\u05d9\u05dd \u05d0\u05e8\u05d2\u05d5\u05e0\u05d9 \u05d5\u05ea\u05e8\u05d1\u05d5\u05ea \u05d0\u05e8\u05d2\u05d5\u05e0\u05d9\u05ea",
+    u"תשתיות עבודה",
+    u"תפקוד מקצועי של העובדים",
+    u"תפקוד מקצועי של המחלקה",
+    u"שירות לתושב",
+    u"אקלים ארגוני ותרבות ארגונית",
 ]
 
 subs_by_theme = collections.OrderedDict()
 for r in tax_rows:
-    t = r[u'\u05e0\u05d5\u05e9\u05d0'].strip()
-    s = r[u'\u05ea\u05ea \u05e0\u05d5\u05e9\u05d0'].strip()
+    t = r[u'נושא'].strip()
+    s = r[u'תת נושא'].strip()
     subs_by_theme.setdefault(t, [])
     if s not in subs_by_theme[t]:
         subs_by_theme[t].append(s)
@@ -48,7 +68,7 @@ def clean(v):
     return " ".join(v.split())
 
 
-DETAIL_PREFIX = u"\u05d0\u05d9\u05d5\u05e9 \u05ea\u05e7\u05e0\u05d9\u05dd - "  # per-role staffing breakdown rows
+DETAIL_PREFIX = u"איוש תקנים - "   # per-role staffing breakdown rows
 
 inds = []
 for r in ix_rows:
@@ -78,41 +98,75 @@ by_name = {}
 for d in inds:
     by_name.setdefault(d["name"], d)
 
+# נתונים.csv מכנה מדד אחד בשם מאוחר יותר מזה שברשימת המדדים. בלי הגישור הזה
+# הסדרה שלו נופלת בשקט והמדד מוצג כאילו אין לו נתונים.
+RENAMES = {
+    u"אחוז תפוסה במסגרות בקהילה": u"אחוז תפוסה במסגרות",   # id 1031
+}
+for alias, canonical in RENAMES.items():
+    if canonical in by_name:
+        by_name[alias] = by_name[canonical]
 
-# ---- series (national + districts) ----------------------------------------
+
+# ---- series (national + districts + sub-districts) ------------------------
 def parse_val(s):
-    s = s.strip()
+    s = (s or "").strip()
+    if not s:
+        return None
     if s.endswith('%'):
         s = s[:-1]
-    return float(s.replace(',', ''))
+    try:
+        return float(s.replace(',', ''))
+    except ValueError:
+        return None
 
 
-# raw[id][scope][ym] = value
+def scope_key(level, name):
+    """ארצי is its own key; the other two levels are namespaced by level,
+    because a name alone is not unique across them (ירושלים)."""
+    return name if level == NATIONAL else level + SEP + name
+
+
+# raw[id][scope_key][ym] = value
 raw = collections.defaultdict(lambda: collections.defaultdict(dict))
-unknown = set()
+unknown_names = set()
+unknown_levels = collections.Counter()
+scope_meta = {}          # key -> {level, name}
 
-for rows in (nat_rows, dis_rows):
-    for r in rows:
-        nm = clean(r['IX_Name'])
-        d = by_name.get(nm)
-        if not d:
-            unknown.add(nm)
-            continue
-        scope = r[u'\u05e7\u05d8\u05d2\u05d5\u05e8\u05d9\u05d4'].strip()
-        ym = r[u'\u05d7\u05d5\u05d3\u05e9 \u05d5\u05e9\u05e0\u05d4'][:7]
-        raw[d["id"]][scope][ym] = round(parse_val(r['DE_Index_Trend']), 3)
+for r in val_rows:
+    nm = clean(r['IX_Name'])
+    d = by_name.get(nm)
+    if not d:
+        unknown_names.add(nm)
+        continue
 
-if unknown:
-    print("UNMATCHED SERIES NAMES:", unknown)
+    level = clean(r['Pop_Category_Heb'])
+    name = clean(r[u'קטגוריה'])
+    if level not in (NATIONAL, DISTRICT, SUBDIST):
+        unknown_levels[level] += 1
+        continue
+
+    v = parse_val(r['DE_Index_Trend'])
+    if v is None:
+        continue
+
+    key = scope_key(level, name)
+    scope_meta[key] = {"key": key, "name": name, "level": level}
+    raw[d["id"]][key][r[u'חודש ושנה'][:7]] = round(v, 3)
+
+if unknown_names:
+    print("UNMATCHED SERIES NAMES:", len(unknown_names))
+if unknown_levels:
+    print("UNKNOWN LEVELS:", dict(unknown_levels))
 
 # Series that break at a known point: from these months on the values jump in a
 # way that reflects a change in recording rather than in the field, so the tail
 # is dropped. Key is the first month NOT shown.
 CUTOFF = {
-    1031: "2025-05",  # ahuz tefusa be-misgarot
-    1032: "2025-05",  # mushamim lelo nizkakut
-    1034: "2026-01",  # pniyot tzibur — reporting stops, tail is all zeros
-    1035: "2025-12",  # meshech tipul be-pniyat tzibur
+    1031: "2025-05",   # ahuz tefusa be-misgarot
+    1032: "2025-05",   # mushamim lelo nizkakut
+    1034: "2026-01",   # pniyot tzibur - reporting stops, tail is all zeros
+    1035: "2025-12",   # meshech tipul be-pniyat tzibur
 }
 
 # Shared month axis per indicator; values aligned per scope (null where missing).
@@ -123,68 +177,81 @@ for ix_id, scopes in raw.items():
     if cut:
         months = [m for m in months if m < cut]
     vals = {}
-    for scope, pts in scopes.items():
-        vals[scope] = [pts.get(m) for m in months]
+    for key, pts in scopes.items():
+        vals[key] = [pts.get(m) for m in months]
     series[ix_id] = {"m": months, "v": vals}
 
-districts = sorted({sc for scopes in raw.values() for sc in scopes if sc != NATIONAL})
-scopes_all = [NATIONAL] + districts
+# Scopes ordered by level, alphabetically within each level.
+scopes_all = []
+for level, _label in LEVELS:
+    named = [m for m in scope_meta.values() if m["level"] == level]
+    scopes_all.extend(sorted(named, key=lambda m: m["name"]))
+
+level_labels = [{"level": lv, "label": lb} for lv, lb in LEVELS]
 
 # ---- funnel (mapping process, from the methodology deck) ------------------
 funnel = [
-    {"label": u"\u05d0\u05d9\u05e0\u05d3\u05d9\u05e7\u05d8\u05d5\u05e8\u05d9\u05dd \u05e9\u05de\u05d5\u05e4\u05d5", "value": 156,
-     "note": u"\u05db\u05dc\u05dc \u05d4\u05d0\u05d9\u05e0\u05d3\u05d9\u05e7\u05d8\u05d5\u05e8\u05d9\u05dd \u05e9\u05e2\u05dc\u05d5 \u05d1\u05de\u05d9\u05e4\u05d5\u05d9 \u05de\u05d5\u05dc \u05d1\u05e2\u05dc\u05d9 \u05d4\u05e2\u05e0\u05d9\u05d9\u05df"},
-    {"label": u"\u05de\u05ea\u05d5\u05e2\u05d3\u05e4\u05d9\u05dd \u05e2\u05e1\u05e7\u05d9\u05ea", "value": 60,
-     "note": u"\u05d0\u05d9\u05e0\u05d3\u05d9\u05e7\u05d8\u05d5\u05e8\u05d9\u05dd \u05e9\u05e0\u05d1\u05d7\u05e8\u05d5 \u05db\u05d1\u05e2\u05dc\u05d9 \u05e2\u05e8\u05da \u05e0\u05d9\u05d4\u05d5\u05dc\u05d9 \u05d2\u05d1\u05d5\u05d4"},
-    {"label": u"\u05e4\u05d5\u05d8\u05e0\u05e6\u05d9\u05d0\u05dc \u05dc\u05e4\u05d9\u05ea\u05d5\u05d7", "value": 32,
-     "note": u"\u05d0\u05d9\u05e0\u05d3\u05d9\u05e7\u05d8\u05d5\u05e8\u05d9\u05dd \u05e9\u05e7\u05d9\u05d9\u05dd \u05e2\u05d1\u05d5\u05e8\u05dd \u05de\u05e7\u05d5\u05e8 \u05e0\u05ea\u05d5\u05e0\u05d9\u05dd \u05d1\u05e8-\u05de\u05d9\u05de\u05d5\u05e9"},
-    {"label": u"\u05e7\u05d9\u05d9\u05de\u05d9\u05dd \u05d1\u05de\u05e2\u05e8\u05db\u05ea", "value": 18,
-     "note": u"\u05de\u05d3\u05d3\u05d9\u05dd \u05e9\u05e4\u05d5\u05ea\u05d7\u05d5 \u05d5\u05e2\u05d5\u05dc\u05d9\u05dd \u05d1\u05de\u05e2\u05e8\u05db\u05ea \u05d4\u05de\u05d3\u05d9\u05d3\u05d4"},
+    {"label": u"אינדיקטורים שמופו", "value": 156,
+     "note": u"כלל האינדיקטורים שעלו במיפוי מול בעלי העניין"},
+    {"label": u"מתועדפים עסקית", "value": 60,
+     "note": u"אינדיקטורים שנבחרו כבעלי ערך ניהולי גבוה"},
+    {"label": u"פוטנציאל לפיתוח", "value": 32,
+     "note": u"אינדיקטורים שקיים עבורם מקור נתונים בר-מימוש"},
+    {"label": u"קיימים במערכת", "value": 18,
+     "note": u"מדדים שפותחו ועולים במערכת המדידה"},
 ]
 
 meta = {
-    "system": u"\u05de\u05e6\u05e4\u05df \u05e8\u05e9\u05d5\u05d9\u05d5\u05ea \u05de\u05e7\u05d5\u05de\u05d9\u05d5\u05ea",
-    "subtitle": u"\u05de\u05e4\u05ea \u05de\u05d3\u05d3\u05d9\u05dd \u05dc\u05d4\u05e2\u05e8\u05db\u05ea \u05d0\u05d9\u05db\u05d5\u05ea \u05e2\u05d1\u05d5\u05d3\u05ea \u05d4\u05de\u05d7\u05dc\u05e7\u05d5\u05ea \u05dc\u05e9\u05d9\u05e8\u05d5\u05ea\u05d9\u05dd \u05d7\u05d1\u05e8\u05ea\u05d9\u05d9\u05dd",
-    "owner": u"\u05d0\u05d2\u05e3 \u05d1\u05db\u05d9\u05e8 \u05d0\u05d9\u05db\u05d5\u05ea, \u05e4\u05d9\u05e7\u05d5\u05d7 \u05d5\u05d1\u05e7\u05e8\u05d4",
+    "system": u"מצפן רשויות מקומיות",
+    "subtitle": u"מפת מדדים להערכת איכות עבודת המחלקות לשירותים חברתיים",
+    "owner": u"אגף בכיר איכות, פיקוח ובקרה",
     "national": NATIONAL,
 }
 
 HEADER = u"""/* ============================================================
-   \u05de\u05e6\u05e4\u05df \u05e8\u05e9\u05d5\u05d9\u05d5\u05ea \u05de\u05e7\u05d5\u05de\u05d9\u05d5\u05ea \u2014 \u05e9\u05db\u05d1\u05ea \u05d4\u05e0\u05ea\u05d5\u05e0\u05d9\u05dd
-   \u05e0\u05d5\u05e6\u05e8 \u05d0\u05d5\u05d8\u05d5\u05de\u05d8\u05d9\u05ea \u05de\u05e7\u05d1\u05e6\u05d9 \u05d4\u05de\u05e7\u05d5\u05e8 (tools/gen_data.py):
-     \u2022 \u05e8\u05e9\u05d9\u05de\u05ea \u05de\u05d3\u05d3\u05d9\u05dd \u05de\u05e9\u05d7\u05d9\u05dd.csv
-     \u2022 \u05de\u05e1\u05e4\u05e8 \u05d0\u05d9\u05e0\u05d3\u05e7\u05d8\u05d5\u05e8\u05d9\u05dd \u05dc\u05e4\u05d9 \u05e0\u05d5\u05e9\u05d0 \u05d5\u05ea\u05ea \u05e0\u05d5\u05e9\u05d0.csv
-     \u2022 \u05e0\u05ea\u05d5\u05e0\u05d9\u05dd \u05d0\u05e8\u05e6\u05d9\u05d9\u05dd \u05de\u05d3\u05d3\u05d9 \u05de\u05d7\u05dc\u05e7\u05d5\u05ea.csv
-     \u2022 \u05e0\u05ea\u05d5\u05e0\u05d9 \u05e0\u05e4\u05d5\u05ea \u05de\u05d3\u05d3\u05d9 \u05de\u05d7\u05dc\u05e7\u05d5\u05ea.csv
+   מצפן רשויות מקומיות — שכבת הנתונים
+   נוצר אוטומטית מקבצי המקור (tools/gen_data.py):
+     • רשימת מדדים משחים.csv
+     • מספר אינדקטורים לפי נושא ותת נושא.csv
+     • נתונים.csv — ערכים לשלוש הרמות: ארצי, מחוז ונפה
    ============================================================ */
 
 const META = {meta};
 
-/* \u05d7\u05de\u05e9\u05ea \u05d4\u05e0\u05d5\u05e9\u05d0\u05d9\u05dd \u05d5\u05ea\u05ea\u05d9 \u05d4\u05e0\u05d5\u05e9\u05d0\u05d9\u05dd */
+/* חמשת הנושאים ותתי הנושאים */
 const THEMES = {themes};
 
-/* \u05e8\u05de\u05d5\u05ea \u05ea\u05e6\u05d5\u05d2\u05d4: \u05d0\u05e8\u05e6\u05d9 + \u05e0\u05e4\u05d5\u05ea */
+/* רמות התצוגה. key הוא המפתח ב-SERIES, name מה שמוצג, level שיוך לקבוצה.
+   שם לבדו אינו ייחודי — «ירושלים» היא גם מחוז וגם נפה — ולכן המפתח כולל רמה. */
 const SCOPES = {scopes};
 
-/* \u05e9\u05dc\u05d1\u05d9 \u05ea\u05d4\u05dc\u05d9\u05da \u05de\u05d9\u05e4\u05d5\u05d9 \u05d4\u05d0\u05d9\u05e0\u05d3\u05d9\u05e7\u05d8\u05d5\u05e8\u05d9\u05dd */
+/* כותרות הקבוצות בבורר רמת התצוגה, לפי הסדר */
+const SCOPE_LEVELS = {levels};
+
+/* שלבי תהליך מיפוי האינדיקטורים */
 const FUNNEL = {funnel};
 
-/* \u05db\u05dc \u05d4\u05de\u05d3\u05d3\u05d9\u05dd. core=1 \u2192 \u05de\u05d3\u05d3 \u05e8\u05d0\u05e9\u05d9, core=0 \u2192 \u05e4\u05d9\u05e8\u05d5\u05d8 \u05d0\u05d9\u05d5\u05e9 \u05dc\u05e4\u05d9 \u05ea\u05e4\u05e7\u05d9\u05d3 */
+/* כל המדדים. core=1 → מדד ראשי, core=0 → פירוט איוש לפי תפקיד */
 const INDICATORS = {inds};
 
-/* \u05e1\u05d3\u05e8\u05d5\u05ea \u05e2\u05ea: id \u2192 { m:[\u05d7\u05d5\u05d3\u05e9\u05d9\u05dd], v:{ \u05e8\u05de\u05d4: [\u05e2\u05e8\u05db\u05d9\u05dd \u05de\u05d5\u05dc \u05d0\u05d5\u05ea\u05d5 \u05e6\u05d9\u05e8] } } */
+/* סדרות עת: id → { m:[חודשים], v:{ מפתח רמה: [ערכים מול אותו ציר] } } */
 const SERIES = {series};
 """
 
 js = (HEADER
       .replace("{meta}", json.dumps(meta, ensure_ascii=False, indent=2))
       .replace("{themes}", json.dumps(themes, ensure_ascii=False, indent=2))
-      .replace("{scopes}", json.dumps(scopes_all, ensure_ascii=False))
+      .replace("{scopes}", json.dumps(scopes_all, ensure_ascii=False, indent=1))
+      .replace("{levels}", json.dumps(level_labels, ensure_ascii=False))
       .replace("{funnel}", json.dumps(funnel, ensure_ascii=False, indent=2))
       .replace("{inds}", json.dumps(inds, ensure_ascii=False, indent=1))
       .replace("{series}", json.dumps(series, ensure_ascii=False)))
 
 io.open(OUT, 'w', encoding='utf-8', newline='\n').write(js)
-print("wrote", OUT.encode('utf-8'), len(js), "chars")
+
+print("wrote data.js:", len(js), "chars")
 print("indicators:", len(inds), "core:", sum(d['core'] for d in inds), "map:", sum(d['map'] for d in inds))
-print("series:", len(series), "scopes:", len(scopes_all), scopes_all)
+print("series:", len(series))
+for level, _ in LEVELS:
+    n = len([m for m in scopes_all if m["level"] == level])
+    print("scopes", repr(level.encode('utf-8')), ":", n)

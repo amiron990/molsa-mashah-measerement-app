@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>מצפן רשויות מקומיות — מפת מדדים</title>
+<meta name="description" content="המדדים במערכת המדידה — ערכים, מגמות והגדרות, ברמה ארצית, מחוזית ונפתית">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/app.css?v=20260902-1">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="brand">
+    <svg viewBox="0 0 40 40" aria-hidden="true">
+      <circle cx="20" cy="20" r="17" fill="none" stroke="#fff" stroke-width="2.2" opacity=".9"/>
+      <path d="M20 7.5 L24.2 15.8 L32.5 20 L24.2 24.2 L20 32.5 L15.8 24.2 L7.5 20 L15.8 15.8 Z" fill="#fff" opacity=".95"/>
+    </svg>
+    <span class="bt">מצפן רשויות מקומיות</span>
+  </div>
+  <div class="tabs">
+    <span class="sep"></span>
+    <a href="index.html">תפיסת המדידה</a>
+    <a href="map.html" class="on">מפת מדדים</a>
+    <a href="manage.html">ניהול מדדים</a>
+  </div>
+  <div class="navsync" id="navSync" hidden></div>
+</nav>
+
+<div class="wrap">
+
+  <div class="page-head">
+    <div class="ht">
+      <h1>מפת מדדים <span class="hint" id="cntLabel"></span></h1>
+      <div class="tagline">
+        לכל מדד מוצג הערך העדכני ברמת התצוגה שנבחרה, מקור הנתונים ותדירות העדכון.
+        לחיצה על כרטיס פותחת את הגדרת המדד ואת גרף המגמה.
+      </div>
+    </div>
+    <div class="pa">
+      <label class="scope">
+        <span>רמת תצוגה</span>
+        <select id="scopeSel" aria-label="בחירת רמת תצוגה"></select>
+      </label>
+      <button class="btn-ghost" id="exportBtn" type="button" title="ייצוא כל ההערכות לקובץ CSV">ייצוא הערכות</button>
+    </div>
+  </div>
+
+  <section class="sect">
+    <div class="filters">
+      <label class="search">
+        <input type="search" id="q" placeholder="חיפוש מדד…" aria-label="חיפוש מדד">
+        <svg viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      </label>
+      <select class="fsel" id="themeSel" aria-label="סינון לפי נושא"></select>
+      <select class="fsel" id="subSel" aria-label="סינון לפי תת נושא"></select>
+      <div class="chips" style="margin-inline-start:auto">
+        <button class="chip" id="dataToggle" type="button">רק מדדים עם נתונים</button>
+        <button class="chip" id="rateToggle" type="button">רק מדדים שטרם דירגתי</button>
+      </div>
+      <div class="viewseg" id="viewSeg" role="group" aria-label="צורת תצוגה">
+        <button type="button" data-v="cards" class="on">כרטיסים</button>
+        <button type="button" data-v="table">טבלה</button>
+      </div>
+    </div>
+
+    <div id="list"></div>
+  </section>
+
+  <div class="foot">
+    מצפן רשויות מקומיות · מפת מדדים להערכת איכות עבודת המחלקות לשירותים חברתיים ·
+    הנתונים מוצגים ברמה ארצית, מחוזית ונפתית
+  </div>
+</div>
+
+<!-- מודאל מדד -->
+<div class="ovl" id="ovl" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+  <div class="modal" id="modal"></div>
+</div>
+
+<script src="assets/data.js?v=20260902-1"></script>
+<script src="assets/collect.js?v=20260902-1"></script>
+<script src="assets/concept.js?v=20260902-1"></script>
+</body>
+</html>

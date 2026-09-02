@@ -108,6 +108,25 @@
     SUBCOUNT = countsBySub();
   }
 
+  /* ---------- רמות תצוגה ----------
+     מפתח הרמה אינו השם: «ירושלים» היא גם מחוז וגם נפה, עם נתונים שונים,
+     ולכן המפתח ב-SERIES הוא «רמה§שם». כאן ההמרה חזרה למה שמוצג למשתמש. */
+  var SCOPE_BY_KEY = {};
+  SCOPES.forEach(function (s) { SCOPE_BY_KEY[s.key] = s; });
+
+  /** «חיפה» — השם בלבד */
+  function scopeName(key) {
+    var s = SCOPE_BY_KEY[key];
+    return s ? s.name : String(key);
+  }
+
+  /** «נפה חיפה» / «מחוז ירושלים» / «ארצי» — לכל מקום שבו הרמה חייבת להיות חד-משמעית */
+  function scopeLabel(key) {
+    var s = SCOPE_BY_KEY[key];
+    if (!s) return String(key);
+    return s.level === NATIONAL ? s.name : s.level + ' ' + s.name;
+  }
+
   /* סדרה של מדד ברמת תצוגה נתונה → [[YYYY-MM, value], ...] ללא ערכים חסרים */
   function seriesOf(d, scope) {
     var s = SERIES[d.id];
@@ -285,6 +304,13 @@
   }
 
   function focusSub(theme, sub, btn) {
+    /* רשימת המדדים חיה במסך «מפת מדדים». כשהעץ מוצג בלעדיה — עוברים לשם
+       עם הסינון כבר מוגדר, במקום לסמן ולא לקרות כלום. */
+    if (!$('#list')) {
+      window.location.href = 'map.html?theme=' + encodeURIComponent(theme) +
+                             '&sub=' + encodeURIComponent(sub);
+      return;
+    }
     document.querySelectorAll('.sub.sel').forEach(function (n) { n.classList.remove('sel'); });
     btn.classList.add('sel');
     state.theme = theme;
@@ -441,6 +467,7 @@
   }
 
   function syncChips() {
+    if (!$('#themeSel')) return;
     $('#themeSel').value = state.theme || '';
     renderSubSel();
     $('#dataToggle').classList.toggle('on', state.dataOnly);
@@ -531,20 +558,20 @@
     var b = el('button', 'mcard');
     b.type = 'button';
 
-    var head = '<div class="top"><span class="tag">' + esc(d.sub) + '</span></div>' +
-      '<div class="nm">' + esc(d.short || d.name) + '</div>';
+    /* בלי תגית תת הנושא — היא חוזרת על כותרת הקבוצה שמעל הכרטיסים */
+    var head = '<div class="nm">' + esc(d.short || d.name) + '</div>';
 
     var body;
     if (p) {
       body = '<div class="row">' +
         '<div><div class="val">' + fmtVal(d, p[1]) +
         (unitCaption(d) ? '<small>' + esc(unitCaption(d)) + '</small>' : '') + '</div>' +
-        '<div class="asof">' + esc(state.scope) + ' · נכון ל-<span class="num">' + ymLabel(p[0]) + '</span></div></div>' +
+        '<div class="asof">' + esc(scopeLabel(state.scope)) + ' · נכון ל-<span class="num">' + ymLabel(p[0]) + '</span></div></div>' +
         '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">' +
         sparkline(d) + deltaHtml(d) + '</div></div>';
     } else {
       body = '<div class="nodata">' +
-        (hasScope(d, NATIONAL) ? 'אין נתונים ברמת ' + esc(state.scope) : 'אין סדרת נתונים בקובץ הנוכחי') +
+        (hasScope(d, NATIONAL) ? 'אין נתונים ב' + esc(scopeLabel(state.scope)) : 'אין סדרת נתונים בקובץ הנוכחי') +
         '</div>';
     }
 
@@ -568,7 +595,7 @@
       return a.order - b.order;
     });
 
-    var head = ['שם המדד', 'נושא / תת נושא', 'ערך (' + state.scope + ')', 'נכון ל-',
+    var head = ['שם המדד', 'נושא / תת נושא', 'ערך (' + scopeLabel(state.scope) + ')', 'נכון ל-',
       'שינוי שנתי', 'מקור נתונים', 'תדירות'];
     if (RATING_ON) head.push('הדירוג שלי');
     var h = ['<div class="tblwrap"><table class="tbl"><thead><tr>'];
@@ -690,7 +717,7 @@
     chartGeo = null;
     if (!s.length) {
       return '<div class="empty">' +
-        (hasScope(d, NATIONAL) ? 'אין נתונים עבור ' + esc(state.scope) + ' במדד זה.' : 'אין סדרת נתונים עבור מדד זה בקובץ הנוכחי.') +
+        (hasScope(d, NATIONAL) ? 'אין נתונים עבור ' + esc(scopeLabel(state.scope)) + ' במדד זה.' : 'אין סדרת נתונים עבור מדד זה בקובץ הנוכחי.') +
         '</div>';
     }
 
@@ -761,7 +788,7 @@
     };
 
     var legend = '<div class="chart-lg">' +
-      '<span><i style="background:#0E9ADC"></i>' + esc(state.scope) + '</span>' +
+      '<span><i style="background:#0E9ADC"></i>' + esc(scopeLabel(state.scope)) + '</span>' +
       (refShown ? '<span><i class="dash"></i>' + esc(NATIONAL) + '</span>' : '') +
       '</div>';
     return '<div class="chart-wrap">' + o.join('') +
@@ -883,7 +910,7 @@
     h += '<section class="msec"><h4>הערך והמגמה</h4><div class="mstat">';
     if (p) {
       h += '<div><div class="big">' + fmtVal(d, p[1]) + '</div>' +
-        '<div class="cap">' + esc(state.scope) + ' · נכון ל-<span class="num">' + ymLabel(p[0]) + '</span>' +
+        '<div class="cap">' + esc(scopeLabel(state.scope)) + ' · נכון ל-<span class="num">' + ymLabel(p[0]) + '</span>' +
         (unitCaption(d) ? ' · ' + esc(unitCaption(d)) : '') + '</div></div>';
       if (dl) {
         var cls = dl.dir === 'fl' ? 'fl' : (dl.good === null ? 'fl' : (dl.good ? 'up' : 'dn'));
@@ -893,7 +920,7 @@
       h += '<div><div class="cap">' + ser.length + ' נקודות מדידה · ' +
         '<span class="num">' + ymLabel(ser[0][0]) + '</span>–<span class="num">' + ymLabel(p[0]) + '</span></div></div>';
     } else {
-      h += '<div class="cap">אין ערך להצגה ברמת ' + esc(state.scope) + '.</div>';
+      h += '<div class="cap">אין ערך להצגה ב' + esc(scopeLabel(state.scope)) + '.</div>';
     }
     h += '</div>' + trendChart(d) + '</section>';
 
@@ -969,13 +996,30 @@
      וגרפים מוצגים, ולכן נשאר גם אחרי שהדירוג והזיהוי ירדו מהמסך. */
   function renderScopeSel() {
     var sel = $('#scopeSel');
+    if (!sel) return;
     sel.innerHTML = '';
-    SCOPES.forEach(function (s) {
-      var o = document.createElement('option');
-      o.value = s;
-      o.textContent = s === NATIONAL ? 'כל הארץ' : s;
-      sel.appendChild(o);
+
+    /* קבוצה לכל רמה, כך שברור אם מדובר בארצי, במחוז או בנפה. הקובץ אינו
+       מכיל שיוך של נפה למחוז, ולכן זו הפרדה לפי רמה ולא עץ אב-בן. */
+    SCOPE_LEVELS.forEach(function (lv) {
+      var items = SCOPES.filter(function (s) { return s.level === lv.level; });
+      if (!items.length) return;
+
+      var host = sel;
+      if (lv.level !== NATIONAL) {
+        host = document.createElement('optgroup');
+        host.label = lv.label;
+        sel.appendChild(host);
+      }
+      items.forEach(function (s) {
+        var o = document.createElement('option');
+        o.value = s.key;
+        o.textContent = s.level === NATIONAL ? 'כל הארץ' : s.name;
+        host.appendChild(o);
+      });
     });
+
+    if (!SCOPE_BY_KEY[state.scope]) state.scope = NATIONAL;
     sel.value = state.scope;
     sel.addEventListener('change', function () {
       state.scope = sel.value;
@@ -1037,11 +1081,66 @@
       if (!r || !r.indicators || !r.indicators.length) return;
       SOURCE = r.indicators;
       rebuild();
-      renderTree();
-      renderSources();
-      renderThemeSel();
-      renderList();
+      if ($('#tree')) renderTree();
+      if ($('#srcBars')) renderSources();
+      if ($('#list')) { renderThemeSel(); renderList(); }
     }).catch(function () { /* אין רשת או שהלשונית ריקה — data.js ממשיך לשמש */ });
+  }
+
+  /** סינון ראשוני מהכתובת — מגיע מלחיצה על תת נושא בעץ שבמסך תפיסת המדידה */
+  function readQuery() {
+    var qs = window.location.search;
+    if (!qs) return;
+    var get = function (k) {
+      var m = qs.match(new RegExp('[?&]' + k + '=([^&]*)'));
+      return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : null;
+    };
+    var t = get('theme'), sb = get('sub');
+    if (t) state.theme = t;
+    if (sb) state.sub = sb;
+  }
+
+  /* מאזיני סרגל הסינון — קיימים רק במסך שיש בו רשימת מדדים */
+  function wireList() {
+    var qt = null;
+    $('#q').addEventListener('input', function (e) {
+      var v = e.target.value;
+      clearTimeout(qt);
+      qt = setTimeout(function () { state.q = v; renderList(); }, 120);
+    });
+
+    $('#themeSel').addEventListener('change', function () {
+      state.theme = this.value || null;
+      state.sub = null;
+      renderSubSel(); renderList();
+    });
+    $('#subSel').addEventListener('change', function () {
+      state.sub = this.value || null;
+      renderList();
+    });
+
+    $('#dataToggle').addEventListener('click', function () {
+      state.dataOnly = !state.dataOnly;
+      syncChips(); renderList();
+    });
+
+    if (RATING_ON) {
+      $('#rateToggle').addEventListener('click', function () {
+        state.unratedOnly = !state.unratedOnly;
+        syncChips(); renderList();
+      });
+      bindStarHover();
+      var ex = $('#exportBtn');
+      if (ex) ex.addEventListener('click', exportCsv);
+    }
+
+    $('#viewSeg').addEventListener('click', function (e) {
+      var b = e.target.closest('button');
+      if (!b) return;
+      state.view = b.dataset.v;
+      Array.prototype.forEach.call(this.children, function (n) { n.classList.toggle('on', n === b); });
+      renderList();
+    });
   }
 
   function init() {
@@ -1058,56 +1157,25 @@
     }
 
     rebuild();
-    renderScopeSel();
-    renderTree();
-    renderFunnel();
-    renderSources();
-    renderThemeSel();
-    renderList();
 
-    var qt = null;
-    $('#q').addEventListener('input', function (e) {
-      var v = e.target.value;
-      clearTimeout(qt);
-      qt = setTimeout(function () { state.q = v; renderList(); }, 120);
-    });
+    /* שני המסכים טוענים את אותו קובץ, וכל אחד מצייר רק את מה שיש ב-DOM שלו:
+       תפיסת המדידה את העץ, המשפך והמקורות; מפת המדדים את רשימת המדדים. */
+    if ($('#tree')) renderTree();
+    if ($('#funnel')) renderFunnel();
+    if ($('#srcBars')) renderSources();
 
-    $('#themeSel').addEventListener('change', function () {
-      state.theme = this.value || null;
-      state.sub = null;
-      document.querySelectorAll('.sub.sel').forEach(function (n) { n.classList.remove('sel'); });
-      renderSubSel(); renderList();
-    });
-    $('#subSel').addEventListener('change', function () {
-      state.sub = this.value || null;
+    if ($('#list')) {
+      readQuery();
+      renderScopeSel();
+      renderThemeSel();
       renderList();
-    });
-
-    $('#dataToggle').addEventListener('click', function () {
-      state.dataOnly = !state.dataOnly;
-      syncChips(); renderList();
-    });
-    if (RATING_ON) {
-      $('#rateToggle').addEventListener('click', function () {
-        state.unratedOnly = !state.unratedOnly;
-        syncChips(); renderList();
-      });
+      wireList();
     }
 
-    $('#viewSeg').addEventListener('click', function (e) {
-      var b = e.target.closest('button');
-      if (!b) return;
-      state.view = b.dataset.v;
-      Array.prototype.forEach.call(this.children, function (n) { n.classList.toggle('on', n === b); });
-      renderList();
-    });
-
-    if (RATING_ON) bindStarHover();
-
-    if (RATING_ON) $('#exportBtn').addEventListener('click', exportCsv);
-
-    $('#ovl').addEventListener('click', function (e) { if (e.target === this) closeModal(); });
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
+    if ($('#ovl')) {
+      $('#ovl').addEventListener('click', function (e) { if (e.target === this) closeModal(); });
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
+    }
 
     refreshFromSheet();
   }

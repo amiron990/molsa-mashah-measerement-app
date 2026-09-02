@@ -403,10 +403,13 @@
     } catch (e) {}
   }
 
+  /* רשימת הנפות לשער הכניסה. SCOPES מחזיק מאז עדכון הנתונים שלוש רמות
+     (ארצי, מחוז, נפה) כאובייקטים, וכאן רלוונטיות רק הנפות. */
   function districts() {
     if (typeof SCOPES === 'undefined' || !SCOPES) return [];
-    var nat = (typeof META !== 'undefined' && META && META.national) || 'ארצי';
-    return SCOPES.filter(function (s) { return s !== nat; });
+    return SCOPES
+      .filter(function (s) { return s && s.level === 'נפה'; })
+      .map(function (s) { return s.name; });
   }
 
   function renderUserBar() {

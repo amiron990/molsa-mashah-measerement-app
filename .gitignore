@@ -3,5 +3,6 @@
 _reference/
 _t.html
 
-# Raw source data (lives in the parent folder; compiled into assets/data.js)
+# Raw source data (compiled into assets/data.js by tools/gen_data.py).
+# נתונים.csv sits here; the two dimension files live in the parent folder.
 *.csv

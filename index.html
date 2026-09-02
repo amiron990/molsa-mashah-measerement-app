@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/app.css?v=20260824-1">
+<link rel="stylesheet" href="assets/app.css?v=20260902-1">
 </head>
 <body>
 
@@ -23,6 +23,7 @@
   <div class="tabs">
     <span class="sep"></span>
     <a href="index.html" class="on">תפיסת המדידה</a>
+    <a href="map.html">מפת מדדים</a>
     <a href="manage.html">ניהול מדדים</a>
   </div>
   <div class="navsync" id="navSync" hidden></div>
@@ -34,13 +35,6 @@
     <div class="ht">
       <h1>תפיסת המדידה — איכות עבודת המחלקות לשירותים חברתיים</h1>
       <div class="tagline">מפת המדדים בנויה על חמישה נושאים מרכזיים, המתפרקים לתתי נושאים. לכל תת נושא משויכים המדדים המודדים אותו בפועל.</div>
-    </div>
-    <div class="pa">
-      <label class="scope">
-        <span>רמת תצוגה</span>
-        <select id="scopeSel" aria-label="בחירת רמת תצוגה"></select>
-      </label>
-      <button class="btn-ghost" id="exportBtn" type="button" title="ייצוא כל ההערכות לקובץ CSV">ייצוא הערכות</button>
     </div>
   </div>
 
@@ -61,8 +55,8 @@
       הסימונים נשמרים אצלכם בדפדפן ומיוצאים יחד עם דירוגי המדדים בכפתור «ייצוא הערכות».
     </p>
     <p class="lead" id="treeLead" style="display:none">
-      לכל תת נושא מוצג מספר המדדים הקיימים בו. לחיצה על תת נושא מסננת את רשימת
-      המדדים שבתחתית המסך לאותו תת נושא בלבד.
+      לכל תת נושא מוצג מספר המדדים הקיימים בו. לחיצה על תת נושא פותחת את מסך
+      «מפת מדדים» מסונן לאותו תת נושא.
     </p>
     <div class="votesum" id="voteSum" hidden></div>
 
@@ -102,48 +96,15 @@
     <div class="bars" id="srcBars"></div>
   </section>
 
-  <!-- 04 · רשימת המדדים -->
-  <section class="sect">
-    <h2>המדדים במערכת <span class="hint" id="cntLabel"></span></h2>
-    <p class="lead">
-      לכל מדד מוצג הערך העדכני ברמת התצוגה שנבחרה, מקור הנתונים ותדירות העדכון.
-      לחיצה על כרטיס פותחת את הגדרת המדד ואת גרף המגמה.
-    </p>
-
-    <div class="filters">
-      <label class="search">
-        <input type="search" id="q" placeholder="חיפוש מדד…" aria-label="חיפוש מדד">
-        <svg viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
-      </label>
-      <select class="fsel" id="themeSel" aria-label="סינון לפי נושא"></select>
-      <select class="fsel" id="subSel" aria-label="סינון לפי תת נושא"></select>
-      <div class="chips" style="margin-inline-start:auto">
-        <button class="chip" id="dataToggle" type="button">רק מדדים עם נתונים</button>
-        <button class="chip" id="rateToggle" type="button">רק מדדים שטרם דירגתי</button>
-      </div>
-      <div class="viewseg" id="viewSeg" role="group" aria-label="צורת תצוגה">
-        <button type="button" data-v="cards" class="on">כרטיסים</button>
-        <button type="button" data-v="table">טבלה</button>
-      </div>
-    </div>
-
-    <div id="list"></div>
-  </section>
-
   <div class="foot">
     מצפן רשויות מקומיות · מפת מדדים להערכת איכות עבודת המחלקות לשירותים חברתיים ·
-    הנתונים מוצגים ברמה ארצית וברמת נפה
+    אגף בכיר איכות, פיקוח ובקרה
   </div>
 </div>
 
-<!-- מודאל מדד -->
-<div class="ovl" id="ovl" role="dialog" aria-modal="true" aria-labelledby="mTitle">
-  <div class="modal" id="modal"></div>
-</div>
 
-
-<script src="assets/data.js?v=20260824-1"></script>
-<script src="assets/collect.js?v=20260824-1"></script>
-<script src="assets/concept.js?v=20260824-1"></script>
+<script src="assets/data.js?v=20260902-1"></script>
+<script src="assets/collect.js?v=20260902-1"></script>
+<script src="assets/concept.js?v=20260902-1"></script>
 </body>
 </html>
