@@ -110,21 +110,48 @@
 
   /* ---------- רמות תצוגה ----------
      מפתח הרמה אינו השם: «ירושלים» היא גם מחוז וגם נפה, עם נתונים שונים,
-     ולכן המפתח ב-SERIES הוא «רמה§שם». כאן ההמרה חזרה למה שמוצג למשתמש. */
+     ולכן המפתח ב-SERIES הוא «רמה§שם». כאן ההמרה חזרה למה שמוצג למשתמש.
+
+     נפה שחולקת שם עם נפה במחוז אחר מגיעה מהמקור בשם מלא («הדרום - מזרח»),
+     ולצדו short («מזרח») — השם הקצר הוא מה שמוצג, והמחוז נוסף לידו כשצריך
+     להבדיל בין השתיים. */
   var SCOPE_BY_KEY = {};
   SCOPES.forEach(function (s) { SCOPE_BY_KEY[s.key] = s; });
 
-  /** «חיפה» — השם בלבד */
+  /** «חיפה», «מזרח» — השם המוצג בלבד, בלי הרמה ובלי המחוז */
   function scopeName(key) {
     var s = SCOPE_BY_KEY[key];
-    return s ? s.name : String(key);
+    return s ? (s.short || s.name) : String(key);
   }
 
-  /** «נפה חיפה» / «מחוז ירושלים» / «ארצי» — לכל מקום שבו הרמה חייבת להיות חד-משמעית */
+  /** המחוז שמעל נפה, או null */
+  function scopeParent(key) {
+    var s = SCOPE_BY_KEY[key];
+    return s && s.parent ? SCOPE_BY_KEY[s.parent] || null : null;
+  }
+
+  /** «נפה חיפה» / «נפה מזרח (מחוז הדרום)» / «מחוז ירושלים» / «ארצי» —
+      לכל מקום שבו הרמה חייבת להיות חד-משמעית */
   function scopeLabel(key) {
     var s = SCOPE_BY_KEY[key];
     if (!s) return String(key);
-    return s.level === NATIONAL ? s.name : s.level + ' ' + s.name;
+    if (s.level === NATIONAL) return s.name;
+    var lbl = s.level + ' ' + (s.short || s.name);
+    var p = scopeParent(key);
+    return s.short && p ? lbl + ' (' + p.level + ' ' + p.name + ')' : lbl;
+  }
+
+  /* יחס בין סקופ כלשהו לבחירה הנוכחית:
+       'on'  — הבחירה עצמה
+       'rel' — המחוז שמעל הנפה שנבחרה, או הנפות שבתוך המחוז שנבחר
+       ''    — כל השאר
+     השיוך מגיע משדה parent שב-SCOPES. נפה שאין לה parent — כזו שהמקור לא
+     מבחין בה מנפה אחרת באותו שם — מחזירה תמיד ''. */
+  function scopeRel(key) {
+    if (key === state.scope) return 'on';
+    var me = SCOPE_BY_KEY[key], sel = SCOPE_BY_KEY[state.scope];
+    if (!me || !sel) return '';
+    return (me.parent === sel.key || sel.parent === me.key) ? 'rel' : '';
   }
 
   /* סדרה של מדד ברמת תצוגה נתונה → [[YYYY-MM, value], ...] ללא ערכים חסרים */
@@ -564,7 +591,7 @@
     var body;
     if (p) {
       body = '<div class="row">' +
-        '<div><div class="val">' + fmtVal(d, p[1]) +
+        '<div><div class="val"><span class="n">' + fmtVal(d, p[1]) + '</span>' +
         (unitCaption(d) ? '<small>' + esc(unitCaption(d)) + '</small>' : '') + '</div>' +
         '<div class="asof">' + esc(scopeLabel(state.scope)) + ' · נכון ל-<span class="num">' + ymLabel(p[0]) + '</span></div></div>' +
         '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">' +
@@ -831,7 +858,7 @@
       hov.style.display = '';
 
       tip.innerHTML = '<div class="ct-d">' + ymLabel(p[0]) + '</div>' +
-        '<div class="ct-r"><i></i><span>' + esc(g.scope) + '</span>' +
+        '<div class="ct-r"><i></i><span>' + esc(scopeLabel(g.scope)) + '</span>' +
         '<b>' + fmtVal(g.d, p[1]) + '</b></div>' +
         (rv != null ? '<div class="ct-r"><i class="dash"></i><span>' + esc(NATIONAL) + '</span>' +
           '<b>' + fmtVal(g.d, rv) + '</b></div>' : '');
@@ -868,6 +895,139 @@
     var firstYy = s[0][0].slice(0, 4);
     if (!seen[firstYy] && (!out.length || out[0].i > s.length * 0.08)) out.unshift({ i: 0, t: firstYy });
     return out.length ? out : [{ i: 0, t: s[0][0].slice(0, 4) }];
+  }
+
+  /* שבירת תווית לשורות שנכנסות לרוחב העמודה. אי אפשר למדוד טקסט לפני הציור,
+     ולכן זו ספירת תווים ולא מדידה — מספיק לשמות מחוזות, שהם קצרים.
+     לכל היותר שתי שורות; מה שנשאר נדחס לשנייה. */
+  function wrapLabel(txt, maxCh) {
+    var words = String(txt).split(' '), lines = [], cur = '';
+    for (var i = 0; i < words.length; i++) {
+      var t = cur ? cur + ' ' + words[i] : words[i];
+      if (cur && t.length > maxCh) { lines.push(cur); cur = words[i]; }
+      else cur = t;
+    }
+    if (cur) lines.push(cur);
+    return lines.length > 2 ? [lines[0], lines.slice(1).join(' ')] : lines;
+  }
+
+  /* ---------- פילוח לפי מחוז / לפי נפה ----------
+     הגרפים האלה אינם מושפעים מבורר רמת התצוגה: תמיד מוצגים כל המחוזות וכל
+     הנפות. הבחירה של המשתמש מסומנת בעמודה כחולה, שאר העמודות אפורות — כך
+     רואים את המיקום היחסי ולא רק את הערך.
+
+     כל העמודות נמדדות באותו חודש (האחרון שיש בו נתון ברמה הזו), אחרת ההשוואה
+     בין העמודות אינה השוואה של אותה נקודת זמן.
+
+     lv הוא איבר מ-SCOPE_LEVELS: level הוא הרמה («מחוז») ו-label שם הקבוצה
+     ברבים («מחוזות»). */
+  function breakdownChart(d, lv) {
+    var s = SERIES[d.id];
+    if (!s) return '';
+
+    var pool = SCOPES.filter(function (sc) { return sc.level === lv.level && s.v[sc.key]; });
+    if (pool.length < 2) return '';
+
+    var idx = -1;
+    for (var i = s.m.length - 1; i >= 0 && idx < 0; i--) {
+      for (var j = 0; j < pool.length; j++) {
+        if (s.v[pool[j].key][i] != null) { idx = i; break; }
+      }
+    }
+    if (idx < 0) return '';
+
+    /* סדר יורד — הגרף עונה על «איפה אני ביחס לאחרים», ולא על סדר אלפביתי */
+    var bars = pool.map(function (sc) {
+      /* שם קצר בשורה הראשונה; המחוז יורד לשורה שנייה רק כשהוא נחוץ כדי
+         להבדיל בין שתי נפות שחולקות שם */
+      var par = sc.short ? SCOPE_BY_KEY[sc.parent] : null;
+      return { key: sc.key, name: sc.short || sc.name, sub: par ? par.name : '', v: s.v[sc.key][idx] };
+    }).filter(function (b) { return b.v != null; })
+      .sort(function (a, b) { return b.v - a.v; });
+    if (bars.length < 2) return '';
+
+    var vals = bars.map(function (b) { return b.v; });
+    /* בסיס העמודות הוא תמיד 0 — עמודה שנחתכת באמצע מגזימה הפרשים קטנים */
+    var mn = Math.min(0, Math.min.apply(null, vals));
+    var mx = Math.max(0, Math.max.apply(null, vals));
+    /* בלי מרווח נשימה מעל הערך הגבוה: העמודות יוצאות מ-0, וכל אחוז מיותר בציר
+       מקטין את כל העמודות. תווית הערך יושבת ב-T שמעל הגבוהה שבהן. */
+    var scl = niceScale(mn, mx, 4);
+    if (mn === 0 && scl.lo < 0) scl.lo = 0;
+    if (mx === 0 && scl.hi > 0) scl.hi = 0;
+    if (scl.hi === scl.lo) scl.hi = scl.lo + (scl.step || 1);   /* סדרה שכולה אפסים */
+
+    /* רוחב הבסיס ידוע לפני הגובה, כי שורת המחוז נשברת לפי רוחב העמודה
+       והגובה נגזר ממספר השורות שיצאו */
+    var W = 660, L = 52, R = 18, T = 26;
+    var iw = W - L - R;
+    var bw = iw / bars.length;
+    var barW = Math.min(bw * 0.62, 54);
+    var fs = bars.length > 8 ? 10 : 11.5;
+    var subFs = fs - 1.5;
+    var maxCh = Math.max(4, Math.floor((bw - 2) / (subFs * 0.52)));   /* אומדן: אות עברית ≈ חצי גובה הגופן */
+    var subLines = 0;
+    bars.forEach(function (b) {
+      b.lines = b.sub ? wrapLabel(b.sub, maxCh) : [];
+      if (b.lines.length > subLines) subLines = b.lines.length;
+    });
+
+    var B = 34 + subLines * 12, H = 178 + B;
+    var ih = H - T - B;
+    var Y = function (v) { return T + ih - ((v - scl.lo) / (scl.hi - scl.lo)) * ih; };
+    var y0 = Y(0), yName = T + ih + 22;
+
+    var o = ['<svg class="chart bd-chart" viewBox="0 0 ' + W + ' ' + H + '" style="direction:ltr" ' +
+      'font-family="Heebo,sans-serif" role="img" aria-label="פילוח לפי ' + esc(lv.level) + '">'];
+
+    for (var v = scl.lo; v <= scl.hi + 1e-9; v += scl.step) {
+      var y = Y(v);
+      o.push('<line x1="' + L + '" y1="' + y.toFixed(1) + '" x2="' + (W - R) + '" y2="' + y.toFixed(1) + '" stroke="#E6E6E6" stroke-width="1"/>');
+      o.push('<text x="' + (L - 8) + '" y="' + (y + 4).toFixed(1) + '" text-anchor="end" font-size="11" font-family="Space Grotesk,sans-serif" fill="#8A8886">' + fmtVal(d, v) + '</text>');
+    }
+
+    /* שלוש דרגות: הבחירה עצמה, מה שקשור אליה בשיוך (מחוז↔נפות), וכל השאר */
+    var FILL = { on: '#0E9ADC', rel: '#A7D5EE', '': '#D8D8D8' };
+    var INK = { on: '#1A1A2E', rel: '#454341', '': '#8A8886' };
+    var nOn = 0, nRel = 0;
+
+    bars.forEach(function (b, k) {
+      var rl = scopeRel(b.key);
+      if (rl === 'on') nOn++; else if (rl === 'rel') nRel++;
+      var cx = L + (k + 0.5) * bw;
+      var yv = Y(b.v);
+      var top = Math.min(yv, y0), hgt = Math.max(Math.abs(y0 - yv), 1.5);
+      o.push('<rect x="' + (cx - barW / 2).toFixed(1) + '" y="' + top.toFixed(1) + '" width="' + barW.toFixed(1) +
+        '" height="' + hgt.toFixed(1) + '" rx="3" fill="' + FILL[rl] + '">' +
+        '<title>' + esc(b.name + (b.sub ? ' (' + b.sub + ')' : '')) + ' · ' + fmtVal(d, b.v) + '</title></rect>');
+      o.push('<text x="' + cx.toFixed(1) + '" y="' + ((b.v < 0 ? y0 : top) - 5).toFixed(1) + '" text-anchor="middle" font-size="' + fs +
+        '" font-weight="700" font-family="Space Grotesk,sans-serif" fill="' + INK[rl] + '">' + fmtVal(d, b.v) + '</text>');
+      o.push('<text x="' + cx.toFixed(1) + '" y="' + yName + '" text-anchor="middle" font-size="' + fs +
+        '" font-weight="' + (rl === 'on' ? '700' : rl === 'rel' ? '500' : '400') + '" fill="' + INK[rl] + '">' + esc(b.name) + '</text>');
+      /* שם המחוז מתחת לשם הנפה — רק לנפות שחולקות שם עם נפה במחוז אחר */
+      b.lines.forEach(function (ln, li) {
+        o.push('<text x="' + cx.toFixed(1) + '" y="' + (yName + 12 * (li + 1)) + '" text-anchor="middle" font-size="' + subFs +
+          '" fill="' + (rl ? INK[rl] : '#A8A6A4') + '">' + esc(ln) + '</text>');
+      });
+    });
+    o.push('</svg>');
+
+    /* «rel» מופיע בשני כיוונים: המחוז שמעל הנפה שנבחרה, או הנפות שתחת המחוז */
+    var sel = SCOPE_BY_KEY[state.scope];
+    var upward = !!(sel && sel.parent && SCOPE_BY_KEY[sel.parent] && SCOPE_BY_KEY[sel.parent].level === lv.level);
+    var lg = [];
+    if (nOn) lg.push('<span><i class="bar on"></i>' + esc(scopeLabel(state.scope)) + '</span>');
+    if (nRel) lg.push('<span><i class="bar rel"></i>' + esc(upward
+      ? 'ה' + lv.level + ' של ' + sel.level + ' ' + scopeName(state.scope)   /* בלי הסוגריים: המחוז כבר מסומן בגרף */
+      : 'ה' + lv.label + ' שב' + scopeLabel(state.scope)) + '</span>');
+    if (lg.length) lg.push('<span><i class="bar"></i>שאר ה' + esc(lv.label) + '</span>');
+
+    return '<div class="bd">' +
+      '<div class="bd-h">פילוח לפי ' + esc(lv.level) +
+      '<span>נכון ל-<span class="num">' + ymLabel(s.m[idx]) + '</span></span></div>' +
+      o.join('') +
+      (lg.length ? '<div class="chart-lg">' + lg.join('') + '</div>' : '') +
+      '</div>';
   }
 
   /* ---------- מודאל מדד ---------- */
@@ -924,7 +1084,30 @@
     }
     h += '</div>' + trendChart(d) + '</section>';
 
-    /* 3 · הערכה */
+    /* 3 · פילוח לפי מחוז ולפי נפה — תמיד כל הרמות, ללא קשר לבורר רמת התצוגה */
+    var bdLv = SCOPE_LEVELS.filter(function (lv) { return lv.level !== NATIONAL; });
+    var bdOn = [], bdHtml = '';
+    bdLv.forEach(function (lv) {
+      var c = breakdownChart(d, lv);
+      if (c) { bdOn.push(lv.level); bdHtml += c; }
+    });
+    if (bdHtml) {
+      var selSc = SCOPE_BY_KEY[state.scope];
+      var picked = selSc && selSc.level !== NATIONAL;
+      /* יש לבחירה שיוך? למחוז תמיד יש נפות, ולנפה יש מחוז — אלא אם המקור
+         לא מבחין בינה לבין נפה אחרת באותו שם. */
+      var hasRel = !!(selSc && (selSc.parent || SCOPES.some(function (x) { return x.parent === selSc.key; })));
+      h += '<section class="msec"><h4>פילוח לפי ' + esc(bdOn.join(' ולפי ')) + '</h4>' +
+        '<div class="bd-sub">כל הערכים בחודש האחרון, מהגבוה לנמוך. ' +
+        (!picked
+          ? 'בחירת מחוז או נפה בבורר רמת התצוגה תסמן את העמודה שלהם בכחול.'
+          : hasRel
+            ? 'העמודה של «' + esc(scopeLabel(state.scope)) + '» מסומנת בכחול, והעמודות המשויכות לה בכחול בהיר.'
+            : 'העמודה של «' + esc(scopeLabel(state.scope)) + '» מסומנת בכחול. לנפה זו אין שיוך למחוז בקובץ הנתונים, ולכן אין מחוז מסומן.') +
+        '</div>' + bdHtml + '</section>';
+    }
+
+    /* 4 · הערכה */
     if (RATING_ON) h += '<section class="msec rate"><h4>הערכה של המדד</h4>' +
       '<div class="rate-sub">עד כמה המדד רלוונטי ושימושי לניהול העבודה בנפה? הדירוג נשמר בדפדפן ומיוצא בסוף הסדנה.</div>' +
       '<div class="row"><span class="lbl">דירוג:</span>' + starsHtml(r.stars) +
@@ -999,8 +1182,8 @@
     if (!sel) return;
     sel.innerHTML = '';
 
-    /* קבוצה לכל רמה, כך שברור אם מדובר בארצי, במחוז או בנפה. הקובץ אינו
-       מכיל שיוך של נפה למחוז, ולכן זו הפרדה לפי רמה ולא עץ אב-בן. */
+    /* קבוצה לכל רמה, כך שברור אם מדובר בארצי, במחוז או בנפה. הקיבוץ הוא לפי
+       רמה ולא עץ אב-בן; נפה שחולקת שם עם אחרת מקבלת את המחוז בסוגריים. */
     SCOPE_LEVELS.forEach(function (lv) {
       var items = SCOPES.filter(function (s) { return s.level === lv.level; });
       if (!items.length) return;
@@ -1014,7 +1197,9 @@
       items.forEach(function (s) {
         var o = document.createElement('option');
         o.value = s.key;
-        o.textContent = s.level === NATIONAL ? 'כל הארץ' : s.name;
+        var p = s.short ? SCOPE_BY_KEY[s.parent] : null;
+        o.textContent = s.level === NATIONAL ? 'כל הארץ'
+          : (s.short || s.name) + (p ? ' (' + p.name + ')' : '');
         host.appendChild(o);
       });
     });

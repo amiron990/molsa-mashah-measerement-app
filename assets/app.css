@@ -406,8 +406,11 @@ a:hover{text-decoration:underline}
 .tag.det{background:#FDF3E0;color:#8A6516}
 .mcard .nm{font-size:13.5px;font-weight:700;color:var(--n5);line-height:1.35;flex:1 1 auto}
 .mcard .row{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin-top:auto}
-.mcard .val{font-family:var(--mono);font-size:23px;font-weight:700;color:var(--n5);line-height:1;direction:ltr;unicode-bidi:isolate}
-.mcard .val small{font-size:12px;font-weight:500;color:var(--n3);margin-inline-start:2px}
+/* הערך נשאר בזרימת ה-RTL של הכרטיס, כדי שקצהו הימני ייישר בדיוק עם הכותרת;
+   רק המספר עצמו מבודד ל-LTR, ויחידת המידה באה אחריו (משמאלו). */
+.mcard .val{font-family:var(--mono);font-size:23px;font-weight:700;color:var(--n5);line-height:1;text-align:start}
+.mcard .val .n{direction:ltr;unicode-bidi:isolate}
+.mcard .val small{font-size:12px;font-weight:500;color:var(--n3);margin-inline-start:3px}
 .mcard .asof{font-size:11px;color:var(--n3);margin-top:4px}
 .mcard .nodata{font-size:12px;color:var(--n3);padding:6px 0;text-align:center}
 .spark{width:78px;height:26px;flex:0 0 auto}
@@ -464,6 +467,15 @@ a:hover{text-decoration:underline}
 .chart-lg span{display:inline-flex;align-items:center;gap:6px}
 .chart-lg i{width:16px;height:2px;background:var(--blue-data);border-radius:2px;display:block}
 .chart-lg i.dash{background:repeating-linear-gradient(90deg,#9AB6C4 0 4px,transparent 4px 7px)}
+
+/* פילוח לפי מחוז / לפי נפה — כל העמודות אפורות, והבחירה של המשתמש כחולה */
+.bd-sub{font-size:12.5px;color:var(--n3);margin:-6px 0 14px;line-height:1.6}
+.bd + .bd{margin-top:20px}
+.bd-h{display:flex;align-items:baseline;gap:10px;font-size:13.5px;font-weight:700;color:var(--n4)}
+.bd-h span{font-size:11.5px;font-weight:400;color:var(--n3)}
+.chart-lg i.bar{width:11px;height:11px;border-radius:3px;background:#D8D8D8}
+.chart-lg i.bar.on{background:var(--blue-data)}
+.chart-lg i.bar.rel{background:#A7D5EE}
 
 /* טולטיפ עקיבה על גרף המגמה */
 .chart-wrap{position:relative}

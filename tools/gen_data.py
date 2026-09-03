@@ -26,6 +26,32 @@ LEVELS = [
     (SUBDIST, u"נפות"),
 ]
 
+# שיוך נפה למחוז, בשני מסלולים.
+#
+# 1. כשנפה חולקת שם עם נפה במחוז אחר, קובץ הערכים מקדים לה את שם המחוז:
+#    «הדרום - מזרח» מול «תל אביב והמרכז - מזרח». קידומת כזו היא מקור השיוך,
+#    והשם שמוצג בגרפים ובבורר הוא מה שאחריה (short).
+# 2. לשאר הנפות אין במקור שום רמז למחוז — עמודת «קטגוריה» מחזיקה שם בלבד —
+#    ולכן הטבלה הזו נשמרת ידנית. היא מוזרמת ל-SCOPES כשדה parent: מפתח הסקופ
+#    של המחוז, לא השם («ירושלים» היא גם מחוז וגם נפה).
+#
+# נפה שאינה נופלת באף אחד מהשניים תישאר בלי parent, והמסך פשוט לא יסמן עבורה
+# מחוז. הדרך לתקן היא להוסיף אותה כאן, או לפצל אותה במקור לפי אותה מוסכמה.
+SUBDIST_PARENT = {
+    u"חדרה":    u"חיפה והצפון",
+    u"חיפה":    u"חיפה והצפון",
+    u"יזרעאל":  u"חיפה והצפון",
+    u"עכו":     u"חיפה והצפון",
+    u"צפת":     u"חיפה והצפון",
+    u"יהודה":   u"ירושלים",
+    u"ירושלים": u"ירושלים",
+    u"שפלה":    u"ירושלים",
+    u"דרום":    u"תל אביב והמרכז",
+    u"צפון":    u"תל אביב והמרכז",
+}
+
+PREFIX_SEP = u" - "   # «מחוז - נפה» בקובץ הערכים
+
 SEP = u"§"   # מפריד בין רמה לשם במפתח הסקופ
 
 
@@ -162,11 +188,13 @@ if unknown_levels:
 # Series that break at a known point: from these months on the values jump in a
 # way that reflects a change in recording rather than in the field, so the tail
 # is dropped. Key is the first month NOT shown.
+#
+# 1034 and 1035 (pniyot tzibur) were cut here too, back when their tails were an
+# artefact of reporting having stopped. The source file has since been refreshed
+# and both series run on normally, so they are shown in full.
 CUTOFF = {
     1031: "2025-05",   # ahuz tefusa be-misgarot
     1032: "2025-05",   # mushamim lelo nizkakut
-    1034: "2026-01",   # pniyot tzibur - reporting stops, tail is all zeros
-    1035: "2025-12",   # meshech tipul be-pniyat tzibur
 }
 
 # Shared month axis per indicator; values aligned per scope (null where missing).
@@ -181,11 +209,23 @@ for ix_id, scopes in raw.items():
         vals[key] = [pts.get(m) for m in months]
     series[ix_id] = {"m": months, "v": vals}
 
-# Scopes ordered by level, alphabetically within each level.
+# Scopes ordered by level, then by the displayed name. Sub-districts also carry
+# parent (the district scope key) and, where the source prefixes the district, short.
+district_names = set(m["name"] for m in scope_meta.values() if m["level"] == DISTRICT)
+
 scopes_all = []
 for level, _label in LEVELS:
     named = [m for m in scope_meta.values() if m["level"] == level]
-    scopes_all.extend(sorted(named, key=lambda m: m["name"]))
+    if level == SUBDIST:
+        for m in named:
+            head, sep, tail = m["name"].partition(PREFIX_SEP)
+            if sep and head in district_names:
+                m["parent"] = scope_key(DISTRICT, head)
+                m["short"] = tail
+            elif m["name"] in SUBDIST_PARENT:
+                m["parent"] = scope_key(DISTRICT, SUBDIST_PARENT[m["name"]])
+    # ממוין לפי השם המוצג, כדי ששתי «מזרח» ישבו זו לצד זו בבורר
+    scopes_all.extend(sorted(named, key=lambda m: (m.get("short") or m["name"], m["name"])))
 
 level_labels = [{"level": lv, "label": lb} for lv, lb in LEVELS]
 
