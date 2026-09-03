@@ -577,6 +577,14 @@ a:hover{text-decoration:underline}
 .stars.sm{pointer-events:none}
 .stars.sm button{font-size:13px;padding:0}
 .stars.tb button{font-size:17px;padding:0 1px}
+/* שם המגיב — שדה אחד, נשמר פעם אחת ומתלווה לכל הערה */
+.rate .rname{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.rate .rname span{font-size:13px;color:var(--n4);font-weight:500;flex:0 0 auto}
+.rate .rname input{
+  flex:1 1 200px;max-width:280px;font-family:var(--font);font-size:13.5px;color:var(--n4);
+  border:1px solid var(--line-strong);border-radius:8px;padding:8px 12px;background:#fff;
+}
+.rate .rname input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(6,136,202,.12)}
 .rate .row{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:12px}
 .rate .row .lbl{font-size:13px;color:var(--n4);font-weight:500}
 .rate .clr{border:0;background:none;color:var(--n3);font-size:12px;cursor:pointer;text-decoration:underline}

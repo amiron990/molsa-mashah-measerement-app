@@ -20,16 +20,22 @@
   var NATIONAL = META.national || 'ארצי';
 
   /* ---------- מתגי מסך ----------
-     RATING_ON — דירוג המדדים בכוכבים וסימון תתי הנושאים. כבוי: אין סדנה פעילה.
+     RATING_ON — מנגנוני הסדנה: סימון תתי נושאים, מסנן «טרם דירגתי», ייצוא
+     ההערכות ועמודת הדירוג בטבלה. כבוי: אין סדנה פעילה.
      ההחזרה לפעולה היא שינוי הערך הזה בלבד, והדירוגים שכבר נאספו נשמרים.
-     שימו לב: שער הזיהוי הוסר מהמסך יחד עם הסדנה, ולכן הפעלה מחדש תצריך
-     להחזיר אותו — אחרת הדירוגים יישלחו לגיליון בלי שם משיב. */
+     שימו לב: שער הזיהוי הוסר מהמסך יחד עם הסדנה. את השם אוסף היום שדה
+     בתיבת ההערכה עצמה, ולכן הפעלה מחדש אינה מחייבת להחזיר את השער. */
   var RATING_ON = false;
 
   /* DETAILED_CARDS_ON — תצוגת «כרטיסים מפורט»: הנושאים זה מתחת לזה והכרטיסים
      שבכל תת נושא נפרשים לרוחב. כבוי: התצוגה ההיררכית החליפה אותה. הקוד שלה
      נשאר על מכונו, וההחזרה היא שינוי הערך הזה בלבד. */
   var DETAILED_CARDS_ON = false;
+
+  /* FEEDBACK_ON — תיבת ההערכה בתחתית פירוט המדד: חמישה כוכבים, הערה חופשית
+     ושם המגיב. דולק. ההערות נאספות לגיליון ומופיעות במסך «ניהול מדדים»,
+     דרך ה-ingest שסורק שם את עמודת ההערה בכל טעינה. */
+  var FEEDBACK_ON = true;
 
   /* ---------- אחסון מקומי: משתמש + הערכות ----------
      כל דירוג נשמר בדפדפן וניתן לייצוא ל-CSV, ובמקביל נשלח לגיליון
@@ -93,6 +99,20 @@
 
   function submitVote(theme, sub, v) {
     collect({ kind: 'subvotes', theme: theme, sub: sub, vote: v });
+  }
+
+  /* שם המגיב — נשמר פעם אחת ומתלווה לכל הערה. שינוי שלו נשלח מחדש על כל
+     ההערכות שכבר נמסרו: כל שורה בגיליון היא upsert לפי משיב ומדד, ולכן
+     שליחה חוזרת מעדכנת את אותן שורות במקום להכפיל אותן. כך גם מי שמילא את
+     השם רק אחרי שכתב כמה הערות אינו משאיר אותן בעילום שם. */
+  function setUserName(name) {
+    name = String(name || '').trim();
+    var was = (store.user && store.user.name) || '';
+    store.user = store.user || {};
+    store.user.name = name;
+    saveStore();
+    if (name === was) return;
+    Object.keys(store.ratings).forEach(function (id) { submitRating(id, store.ratings[id]); });
   }
 
   /* ---------- עזרי נתונים ----------
@@ -606,7 +626,7 @@
     }
 
     var foot = '<div class="ft"><span>' + esc(d.source) + '</span>' +
-      (RATING_ON && r ? '<span class="rated">' + starsHtml(r.stars, 'sm') + '</span>'
+      (FEEDBACK_ON && r ? '<span class="rated">' + starsHtml(r.stars, 'sm') + '</span>'
          : '<span>' + esc(d.freq) + '</span>') + '</div>';
 
     b.innerHTML = head + body + foot;
@@ -1378,8 +1398,12 @@
     }
 
     /* 5 · הערכה */
-    if (RATING_ON) h += '<section class="msec rate"><h4>הערכה של המדד</h4>' +
-      '<div class="rate-sub">עד כמה המדד רלוונטי ושימושי לניהול העבודה בנפה? הדירוג נשמר בדפדפן ומיוצא בסוף הסדנה.</div>' +
+    if (FEEDBACK_ON) h += '<section class="msec rate"><h4>הערכה של המדד</h4>' +
+      '<div class="rate-sub">עד כמה המדד רלוונטי ושימושי לניהול העבודה בנפה? ' +
+      'הדירוג וההערה נשמרים בדפדפן ונאספים למסך «ניהול מדדים», עם השם שתמלאו.</div>' +
+      '<label class="rname"><span>השם שלכם</span>' +
+      '<input type="text" id="rName" autocomplete="name" placeholder="כדי שנדע ממי ההערה" value="' +
+      esc((store.user && store.user.name) || '') + '"></label>' +
       '<div class="row"><span class="lbl">דירוג:</span>' + starsHtml(r.stars) +
       '<button class="clr" type="button" id="rClear">ניקוי</button></div>' +
       '<textarea id="rNote" placeholder="הערות, הסתייגויות, שימוש אפשרי במדד…">' + esc(r.note) + '</textarea>' +
@@ -1393,13 +1417,14 @@
     $('.x', m).addEventListener('click', closeModal);
     wireChart(m);
     wireHist(m);
-    if (RATING_ON) wireRating(m, d);
+    if (FEEDBACK_ON) wireRating(m, d);
     $('#ovl').classList.add('on');
     document.body.style.overflow = 'hidden';
   }
 
   function wireRating(m, d) {
     var box = $('.rate .stars', m), note = $('#rNote', m), saved = $('#rSaved', m);
+    var nameIn = $('#rName', m);
     var flash = function (t) { saved.textContent = t || 'נשמר ✓'; setTimeout(function () { saved.textContent = ''; }, 1800); };
 
     box.addEventListener('click', function (e) {
@@ -1420,6 +1445,16 @@
       note.value = '';
       flash('ההערכה נוקתה');
       renderList();
+    });
+
+
+    var nt = null;
+    nameIn.addEventListener('input', function () {
+      clearTimeout(nt);
+      nt = setTimeout(function () {
+        setUserName(nameIn.value);
+        if (nameIn.value.trim()) flash('השם נשמר ✓');
+      }, 500);
     });
 
     var t = null;
@@ -1575,12 +1610,14 @@
       renderList();
     });
 
+    /* תצוגה מקדימה בהובר על הכוכבים — נחוצה בכל מקום שיש בו כוכבים לחיצים */
+    if (FEEDBACK_ON || RATING_ON) bindStarHover();
+
     if (RATING_ON) {
       $('#rateToggle').addEventListener('click', function () {
         state.unratedOnly = !state.unratedOnly;
         syncChips(); renderList();
       });
-      bindStarHover();
       var ex = $('#exportBtn');
       if (ex) ex.addEventListener('click', exportCsv);
     }
