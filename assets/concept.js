@@ -211,7 +211,7 @@
   /* ---------- מצב המסך ---------- */
   var state = {
     q: '', theme: null, sub: null,
-    dataOnly: false, unratedOnly: false, view: 'cards',
+    unratedOnly: false, view: 'cards',
     scope: NATIONAL
   };
 
@@ -497,7 +497,6 @@
     if (!$('#themeSel')) return;
     $('#themeSel').value = state.theme || '';
     renderSubSel();
-    $('#dataToggle').classList.toggle('on', state.dataOnly);
     $('#rateToggle').classList.toggle('on', state.unratedOnly);
   }
 
@@ -506,7 +505,6 @@
     return CORE.filter(function (d) {
       if (state.theme && d.theme !== state.theme) return false;
       if (state.sub && d.sub !== state.sub) return false;
-      if (state.dataOnly && !seriesOf(d).length) return false;
       if (state.unratedOnly && ratingOf(d.id)) return false;
       if (q && (d.name + ' ' + d.sub + ' ' + d.theme + ' ' + d.source + ' ' + d.desc).indexOf(q) < 0) return false;
       return true;
@@ -1337,11 +1335,6 @@
     $('#subSel').addEventListener('change', function () {
       state.sub = this.value || null;
       renderList();
-    });
-
-    $('#dataToggle').addEventListener('click', function () {
-      state.dataOnly = !state.dataOnly;
-      syncChips(); renderList();
     });
 
     if (RATING_ON) {
