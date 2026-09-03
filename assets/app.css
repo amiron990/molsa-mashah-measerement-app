@@ -361,6 +361,9 @@ a:hover{text-decoration:underline}
   padding:7px 15px;cursor:pointer;transition:.15s;
 }
 .viewseg button + button{border-inline-start:1px solid var(--n2)}
+/* כפתור מוסתר לא משאיר קו מפריד תלוי באוויר בקצה הקבוצה */
+.viewseg button[hidden]{display:none}
+.viewseg button[hidden] + button{border-inline-start:0}
 .viewseg button:hover{color:var(--blue)}
 .viewseg button.on{background:var(--blue);color:#fff;font-weight:700}
 
