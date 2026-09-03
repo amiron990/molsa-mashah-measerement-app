@@ -515,6 +515,53 @@ a:hover{text-decoration:underline}
 .chart-tip .ct-r i.dash{background:repeating-linear-gradient(90deg,#9AB6C4 0 4px,transparent 4px 7px)}
 .chart-tip .ct-r b{font-family:var(--mono);font-weight:700;margin-inline-start:auto;direction:ltr;unicode-bidi:isolate}
 
+/* ===== התפלגות הרשויות המקומיות ===================================== */
+.hist-wrap{position:relative}
+.hist-lg{
+  display:flex;align-items:center;gap:10px;font-size:11.5px;color:var(--n3);
+  margin:2px 0 4px;flex-wrap:wrap;
+}
+.hist-lg .ramp{
+  width:96px;height:8px;border-radius:4px;flex:0 0 auto;
+  background:linear-gradient(90deg,#F24266 0%,#F8BE3E 50%,#44D48E 100%);
+}
+.hist-lg .ramp.rev{background:linear-gradient(90deg,#44D48E 0%,#F8BE3E 50%,#F24266 100%)}
+.hist-lg .ramp.flat{background:#9CCFE8}
+.hist-lg .hist-n{margin-inline-start:auto;font-family:var(--mono);font-size:11px}
+
+/* טולטיפ הסל — רשימת הרשויות שנפלו בו */
+.hist-tip{
+  position:absolute;z-index:5;background:#1A1A2E;color:#fff;border-radius:9px;
+  padding:9px 11px;font-size:11.5px;line-height:1.5;pointer-events:none;
+  box-shadow:0 6px 20px rgba(10,14,39,.28);min-width:170px;max-width:280px;
+}
+.hist-tip[hidden]{display:none}
+.hist-tip .ht-h{
+  display:flex;align-items:baseline;gap:10px;font-weight:700;
+  padding-bottom:6px;margin-bottom:6px;border-bottom:1px solid rgba(255,255,255,.18);
+  font-family:var(--mono);direction:ltr;unicode-bidi:isolate;
+}
+.hist-tip .ht-h b{margin-inline-start:auto;font-weight:500;opacity:.75;font-family:var(--font);direction:rtl}
+.hist-tip .ht-l div{display:flex;align-items:baseline;gap:12px}
+.hist-tip .ht-l div span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hist-tip .ht-l div b{margin-inline-start:auto;font-family:var(--mono);font-weight:700;direction:ltr;unicode-bidi:isolate}
+.hist-tip .ht-m{margin-top:5px;opacity:.7}
+
+/* המובילות ומי שבתחתית */
+.mx{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px 32px;margin-top:18px}
+.mx-col h5{
+  font-size:12.5px;font-weight:700;color:var(--n4);margin:0 0 8px;
+  padding-bottom:6px;border-bottom:1px solid var(--n2);
+}
+.mx-col h5.good{color:var(--good-ink)}
+.mx-col h5.bad{color:var(--bad-ink)}
+.mx-col ol{list-style:none;margin:0;padding:0}
+.mx-col li{display:flex;align-items:baseline;gap:9px;font-size:12.5px;padding:4px 0}
+.mx-col li + li{border-top:1px solid var(--n1)}
+.mx-col li .r{font-family:var(--mono);font-size:10.5px;color:var(--n3);min-width:15px}
+.mx-col li .nm{color:var(--n4);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mx-col li b{margin-inline-start:auto;font-family:var(--mono);color:var(--n5);direction:ltr;unicode-bidi:isolate}
+
 /* ===== דירוג משתמש ==================================================== */
 .rate-sub{font-size:13px;color:var(--n3);margin:-4px 0 14px;line-height:1.6;max-width:80ch}
 .stars{display:inline-flex;gap:2px;direction:ltr;unicode-bidi:isolate}

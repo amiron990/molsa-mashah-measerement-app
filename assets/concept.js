@@ -945,6 +945,228 @@
     return lines.length > 2 ? [lines[0], lines.slice(1).join(' ')] : lines;
   }
 
+  /* ---------- התפלגות הרשויות המקומיות ----------
+     data_muni.csv נותן ערך עדכני אחד לכל מדד ורשות. ההתפלגות ארצית במהותה
+     ואינה מושפעת מבורר רמת התצוגה — אין בקובץ שיוך של רשות לנפה. */
+
+  /* ערכי הרשויות למדד, ממוינים מהנמוך לגבוה */
+  function muniValues(d) {
+    var vals = MUNI[d.id];
+    if (!vals) return [];
+    var out = [];
+    for (var i = 0; i < MUNIS.length && i < vals.length; i++) {
+      if (vals[i] != null) out.push({ name: MUNIS[i], v: vals[i] });
+    }
+    return out.sort(function (a, b) { return a.v - b.v; });
+  }
+
+  function pctOf(sorted, p) {
+    if (!sorted.length) return 0;
+    var i = Math.round(p * (sorted.length - 1));
+    return sorted[Math.max(0, Math.min(sorted.length - 1, i))].v;
+  }
+
+  /* סולם רוחבי סל «עגולים»: … 1, 2, 2.5, 5, 10, 20, 25, 50 … לפי אינדקס רץ,
+     כך שהרחבה או הצרה הן צעד אחד למעלה או למטה. */
+  function stepAt(i) {
+    var base = [1, 2, 2.5, 5];
+    return base[((i % 4) + 4) % 4] * Math.pow(10, Math.floor(i / 4));
+  }
+  function stepIndexFor(x) {
+    var i = -30;
+    while (i < 30 && stepAt(i) < x - 1e-12) i++;
+    return i;
+  }
+
+  /* חלוקה לסלים לפי צורת ההתפלגות של המדד עצמו, ולא מספר סלים קבוע לכולם:
+       • רוחב הסל מ-Freedman–Diaconis (2·IQR/n^⅓) — נגזר מהפיזור בפועל ועמיד
+         בפני חריגים. כשאין פיזור כלל נופלים ל-Sturges.
+       • זנב ארוך נחתך לתצוגה בגדר החריגים המקובלת (שלוש רבעוניות מעבר ל-Q1
+         או ל-Q3) ונאסף לסל קצה פתוח
+         «ומעלה» או «עד», אחרת גוף ההתפלגות נמעך לעמודה אחת.
+       • הרוחב מעוגל לערך מהסולם ומתכוונן עד שמספר הסלים קריא (7–14). */
+  function histSpec(items) {
+    var n = items.length;
+    var q1 = pctOf(items, 0.25), q3 = pctOf(items, 0.75), iqr = q3 - q1;
+    var mn = items[0].v, mx = items[n - 1].v;
+
+    var lo0 = mn, hi0 = mx;
+    if (iqr > 0) {
+      lo0 = Math.max(mn, q1 - 3 * iqr);
+      hi0 = Math.min(mx, q3 + 3 * iqr);
+    }
+    if (hi0 <= lo0) { lo0 = mn; hi0 = mx; }
+
+    var span = hi0 - lo0;
+    var fd = iqr > 0 ? 2 * iqr / Math.pow(n, 1 / 3)
+                     : (span || 1) / (Math.log(n) / Math.LN2 + 1);
+    var i = stepIndexFor(fd || 1), w = stepAt(i);
+    var count = function () {
+      return Math.round((Math.ceil(hi0 / w) * w - Math.floor(lo0 / w) * w) / w);
+    };
+    var guard = 0;
+    while (count() > 14 && guard++ < 40) { i++; w = stepAt(i); }
+    guard = 0;
+    while (count() < 7 && guard++ < 40) { i--; w = stepAt(i); }
+
+    var lo = Math.floor(lo0 / w) * w, hi = Math.ceil(hi0 / w) * w;
+    var k = Math.max(1, Math.round((hi - lo) / w));
+    var bins = [];
+    for (var b = 0; b < k; b++) {
+      bins.push({ lo: lo + b * w, hi: lo + (b + 1) * w, items: [] });
+    }
+    items.forEach(function (it) {
+      var idx = Math.floor((it.v - lo) / w + 1e-9);
+      bins[Math.max(0, Math.min(k - 1, idx))].items.push(it);
+    });
+    bins[0].openLo = mn < lo - 1e-9;
+    bins[k - 1].openHi = mx > hi + 1e-9;
+    return { bins: bins, w: w, lo: lo, hi: hi };
+  }
+
+  /* אדום (הגרוע) → צהוב → ירוק (הטוב), לפי כיווניות המדד. בלי כיווניות
+     מוגדרת אין «טוב» ו«רע», ולכן הכול נשאר בכחול הנתונים. */
+  function binColor(t, positive) {
+    if (positive !== 0 && positive !== 1) return '#9CCFE8';
+    var s = positive === 1 ? t : 1 - t;
+    var A = [242, 66, 102], B = [248, 190, 62], C = [68, 212, 142];
+    var from = s < 0.5 ? A : B, to = s < 0.5 ? B : C;
+    var f = s < 0.5 ? s * 2 : (s - 0.5) * 2;
+    return 'rgb(' + from.map(function (c, j) { return Math.round(c + (to[j] - c) * f); }).join(',') + ')';
+  }
+
+  /* גיאומטריית ההיסטוגרמה שמוצגת כרגע — משמשת את הטולטיפ */
+  var histGeo = null;
+
+  function binLabel(d, b) {
+    if (b.openLo) return 'עד ' + fmtVal(d, b.hi);
+    if (b.openHi) return fmtVal(d, b.lo) + ' ומעלה';
+    return fmtVal(d, b.lo) + '–' + fmtVal(d, b.hi);
+  }
+
+  function histChart(d) {
+    histGeo = null;
+    var items = muniValues(d);
+    if (items.length < 12) return '';
+
+    var spec = histSpec(items), bins = spec.bins, k = bins.length;
+    var mxN = 0;
+    bins.forEach(function (b) { if (b.items.length > mxN) mxN = b.items.length; });
+
+    var W = 660, H = 236, L = 44, R = 18, T = 22, B = 40;
+    var iw = W - L - R, ih = H - T - B;
+    var sc = niceScale(0, mxN, 4);
+    if (sc.hi <= 0) sc.hi = 1;
+    var Y = function (v) { return T + ih - (v / sc.hi) * ih; };
+    var bw = iw / k, barW = Math.min(bw * 0.86, 64);
+
+    var o = ['<svg class="chart hist-chart" viewBox="0 0 ' + W + ' ' + H + '" style="direction:ltr" ' +
+      'font-family="Heebo,sans-serif" role="img" aria-label="התפלגות הרשויות המקומיות">'];
+
+    for (var v = 0; v <= sc.hi + 1e-9; v += sc.step) {
+      var y = Y(v);
+      o.push('<line x1="' + L + '" y1="' + y.toFixed(1) + '" x2="' + (W - R) + '" y2="' + y.toFixed(1) + '" stroke="#E6E6E6" stroke-width="1"/>');
+      o.push('<text x="' + (L - 8) + '" y="' + (y + 4).toFixed(1) + '" text-anchor="end" font-size="11" font-family="Space Grotesk,sans-serif" fill="#8A8886">' + Math.round(v) + '</text>');
+    }
+
+    bins.forEach(function (b, j) {
+      var t = k === 1 ? 0.5 : j / (k - 1);
+      var cx = L + (j + 0.5) * bw, yv = Y(b.items.length);
+      var hgt = Math.max(T + ih - yv, b.items.length ? 1.5 : 0);
+      if (hgt) {
+        o.push('<rect data-b="' + j + '" x="' + (cx - barW / 2).toFixed(1) + '" y="' + yv.toFixed(1) +
+          '" width="' + barW.toFixed(1) + '" height="' + hgt.toFixed(1) + '" rx="2" fill="' + binColor(t, d.positive) + '"/>');
+      }
+      if (b.items.length) {
+        o.push('<text x="' + cx.toFixed(1) + '" y="' + (yv - 5).toFixed(1) + '" text-anchor="middle" font-size="10" ' +
+          'font-family="Space Grotesk,sans-serif" fill="#8A8886">' + b.items.length + '</text>');
+      }
+      /* אזור ריחוף על כל רוחב הסל, גם מעל עמודה נמוכה או ריקה */
+      o.push('<rect data-b="' + j + '" x="' + (L + j * bw).toFixed(1) + '" y="' + T +
+        '" width="' + bw.toFixed(1) + '" height="' + ih + '" fill="transparent" style="cursor:crosshair"/>');
+    });
+
+    /* תוויות גבולות הסלים, מדוללות כדי שלא ייגעו זו בזו */
+    var every = Math.ceil((k + 1) / 8);
+    for (var e = 0; e <= k; e += every) {
+      o.push('<text x="' + (L + e * bw).toFixed(1) + '" y="' + (H - 22) + '" text-anchor="middle" font-size="10" ' +
+        'font-family="Space Grotesk,sans-serif" fill="#8A8886">' + fmtVal(d, spec.lo + e * spec.w) + '</text>');
+    }
+    o.push('</svg>');
+
+    histGeo = { d: d, bins: bins };
+
+    var dirTxt = d.positive === 1 ? 'ככל שימינה — טוב יותר'
+      : d.positive === 0 ? 'ככל ששמאלה — טוב יותר' : 'למדד זה אין כיווניות מוגדרת';
+    var ramp = 'ramp' + (d.positive === 0 ? ' rev' : '') +
+      (d.positive !== 0 && d.positive !== 1 ? ' flat' : '');
+    return '<div class="hist-wrap">' + o.join('') + '<div class="hist-tip" hidden></div></div>' +
+      '<div class="hist-lg"><span class="' + ramp + '"></span><span>' + esc(dirTxt) + '</span>' +
+      '<span class="hist-n">' + items.length + ' רשויות · רוחב סל ' + fmtVal(d, spec.w) + '</span></div>';
+  }
+
+  /* טולטיפ הסל: אילו רשויות נפלו בו ומה הערך שלהן */
+  function wireHist(m) {
+    var g = histGeo, wrap = $('.hist-wrap', m);
+    if (!g || !wrap) return;
+    var svg = $('.hist-chart', wrap), tip = $('.hist-tip', wrap);
+
+    function hide() { tip.hidden = true; }
+
+    svg.addEventListener('pointerleave', hide);
+    svg.addEventListener('pointermove', function (e) {
+      var t = e.target;
+      var j = t && t.getAttribute ? t.getAttribute('data-b') : null;
+      if (j == null) { hide(); return; }
+      var b = g.bins[+j];
+      var list = b.items.slice().sort(function (x, y) { return y.v - x.v; });
+      var shown = list.slice(0, 8);
+
+      tip.innerHTML = '<div class="ht-h">' + esc(binLabel(g.d, b)) +
+        '<b>' + b.items.length + ' רשויות</b></div>' +
+        (shown.length
+          ? '<div class="ht-l">' + shown.map(function (x) {
+              return '<div><span>' + esc(x.name) + '</span><b>' + fmtVal(g.d, x.v) + '</b></div>';
+            }).join('') + '</div>' +
+            (list.length > shown.length
+              ? '<div class="ht-m">ועוד ' + (list.length - shown.length) + ' רשויות</div>' : '')
+          : '<div class="ht-m">אין רשויות בסל הזה</div>');
+      tip.hidden = false;
+
+      /* לצד הסמן ולא מעליו: טולטיפ באורך רשימה מכסה בדיוק את העמודה שעליה
+         מרחפים. אם אין מקום בצד אחד הוא עובר לשני, ובאנכי נצמד לגבולות. */
+      var wb = wrap.getBoundingClientRect();
+      var cx = e.clientX - wb.left, cy = e.clientY - wb.top;
+      var tw = tip.offsetWidth, th = tip.offsetHeight;
+      var left = cx + 18;
+      if (left + tw > wb.width - 6) left = cx - 18 - tw;
+      tip.style.left = Math.max(6, Math.min(left, wb.width - tw - 6)).toFixed(1) + 'px';
+      tip.style.top = Math.max(6, Math.min(cy - th / 2, wb.height - th - 6)).toFixed(1) + 'px';
+    });
+  }
+
+  /* המובילות ומי שבתחתית — איזה קצה הוא «מוביל» נקבע מכיווניות המדד */
+  function extremesHtml(d) {
+    var items = muniValues(d);
+    if (items.length < 12) return '';
+    var N = Math.min(10, Math.floor(items.length / 2));
+    var known = d.positive === 0 || d.positive === 1;
+    var asc = items, desc = items.slice().reverse();
+
+    var col = function (title, rows, cls) {
+      return '<div class="mx-col"><h5 class="' + cls + '">' + esc(title) + '</h5><ol>' +
+        rows.slice(0, N).map(function (x, i) {
+          return '<li><span class="r">' + (i + 1) + '</span><span class="nm">' + esc(x.name) +
+            '</span><b>' + fmtVal(d, x.v) + '</b></li>';
+        }).join('') + '</ol></div>';
+    };
+
+    return '<div class="mx">' +
+      col(known ? N + ' המובילות' : N + ' הגבוהות', d.positive === 0 ? asc : desc, known ? 'good' : '') +
+      col(known ? N + ' בתחתית' : N + ' הנמוכות', d.positive === 0 ? desc : asc, known ? 'bad' : '') +
+      '</div>';
+  }
+
   /* ---------- פילוח לפי מחוז / לפי נפה ----------
      הגרפים האלה אינם מושפעים מבורר רמת התצוגה: תמיד מוצגים כל המחוזות וכל
      הנפות. הבחירה של המשתמש מסומנת בעמודה כחולה, שאר העמודות אפורות — כך
@@ -1122,7 +1344,17 @@
     }
     h += '</div>' + trendChart(d) + '</section>';
 
-    /* 3 · פילוח לפי מחוז ולפי נפה — תמיד כל הרמות, ללא קשר לבורר רמת התצוגה */
+    /* 3 · התפלגות הרשויות — מיד אחרי גרף המגמה */
+    var hist = histChart(d);
+    if (hist) {
+      h += '<section class="msec"><h4>התפלגות הרשויות המקומיות</h4>' +
+        '<div class="bd-sub">הערך העדכני של כל רשות מקומית, מקובץ הרשויות. ' +
+        'ריחוף על סל מראה אילו רשויות נפלו בו ומה הערך שלהן. ' +
+        'ההתפלגות ארצית ואינה מושפעת מבורר רמת התצוגה.</div>' +
+        hist + extremesHtml(d) + '</section>';
+    }
+
+    /* 4 · פילוח לפי מחוז ולפי נפה — תמיד כל הרמות, ללא קשר לבורר רמת התצוגה */
     var bdLv = SCOPE_LEVELS.filter(function (lv) { return lv.level !== NATIONAL; });
     var bdOn = [], bdHtml = '';
     bdLv.forEach(function (lv) {
@@ -1145,7 +1377,7 @@
         '</div>' + bdHtml + '</section>';
     }
 
-    /* 4 · הערכה */
+    /* 5 · הערכה */
     if (RATING_ON) h += '<section class="msec rate"><h4>הערכה של המדד</h4>' +
       '<div class="rate-sub">עד כמה המדד רלוונטי ושימושי לניהול העבודה בנפה? הדירוג נשמר בדפדפן ומיוצא בסוף הסדנה.</div>' +
       '<div class="row"><span class="lbl">דירוג:</span>' + starsHtml(r.stars) +
@@ -1160,6 +1392,7 @@
     m.scrollTop = 0;
     $('.x', m).addEventListener('click', closeModal);
     wireChart(m);
+    wireHist(m);
     if (RATING_ON) wireRating(m, d);
     $('#ovl').classList.add('on');
     document.body.style.overflow = 'hidden';

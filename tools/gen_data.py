@@ -229,6 +229,36 @@ for level, _label in LEVELS:
 
 level_labels = [{"level": lv, "label": lb} for lv, lb in LEVELS]
 
+# ---- municipality values --------------------------------------------------
+# data_muni.csv הוא צילום מצב אחד לכל מדד ורשות מקומית — ערך עדכני, בלי ציר
+# זמן ובלי רמות. הוא מוזרם כשני מבנים: MUNIS, רשימת שמות הרשויות, ו-MUNI,
+# מיפוי מזהה מדד → מערך ערכים מיושר לאותה רשימה (null היכן שאין נתון).
+# היישור לרשימה אחת חוסך את חזרת 257 השמות בכל מדד.
+muni_raw = collections.defaultdict(dict)      # ix_id -> muni name -> value
+muni_names = set()
+muni_unmatched = set()
+
+for r in rd(u"data_muni.csv", APP):
+    nm = clean(r['IX_Name'])
+    d = by_name.get(nm)
+    if not d:
+        muni_unmatched.add(nm)
+        continue
+    who = clean(r[u'קטגוריה'])
+    v = parse_val(r['DE_Index_Trend'])
+    if not who or v is None:
+        continue
+    muni_names.add(who)
+    muni_raw[d["id"]][who] = round(v, 3)
+
+if muni_unmatched:
+    print("UNMATCHED MUNI NAMES:", len(muni_unmatched))
+
+munis = sorted(muni_names)
+muni = {}
+for ix_id, by_muni in muni_raw.items():
+    muni[ix_id] = [by_muni.get(m) for m in munis]
+
 # ---- funnel (mapping process, from the methodology deck) ------------------
 # שלושת השלבים הראשונים הם מספרי המצגת. השלב האחרון נספר מהנתונים ולא נלקח
 # משם: המצגת מנתה 18, אבל שלושה מהם משויכים לנושא רקע שמחוץ לחמשת נושאי המפה
@@ -260,6 +290,7 @@ HEADER = u"""/* ============================================================
      • רשימת מדדים משחים.csv
      • מספר אינדקטורים לפי נושא ותת נושא.csv
      • נתונים.csv — ערכים לשלוש הרמות: ארצי, מחוז ונפה
+     • data_muni.csv — ערך עדכני לכל מדד ורשות מקומית
    ============================================================ */
 
 const META = {meta};
@@ -282,6 +313,12 @@ const INDICATORS = {inds};
 
 /* סדרות עת: id → { m:[חודשים], v:{ מפתח רמה: [ערכים מול אותו ציר] } } */
 const SERIES = {series};
+
+/* שמות הרשויות המקומיות, לפי הסדר שאליו מיושרים ערכי MUNI */
+const MUNIS = {munis};
+
+/* ערך עדכני אחד לכל מדד ורשות: id → [ערכים מיושרים ל-MUNIS], null בלי נתון */
+const MUNI = {muni};
 """
 
 js = (HEADER
@@ -291,7 +328,9 @@ js = (HEADER
       .replace("{levels}", json.dumps(level_labels, ensure_ascii=False))
       .replace("{funnel}", json.dumps(funnel, ensure_ascii=False, indent=2))
       .replace("{inds}", json.dumps(inds, ensure_ascii=False, indent=1))
-      .replace("{series}", json.dumps(series, ensure_ascii=False)))
+      .replace("{series}", json.dumps(series, ensure_ascii=False))
+      .replace("{munis}", json.dumps(munis, ensure_ascii=False))
+      .replace("{muni}", json.dumps(muni, ensure_ascii=False)))
 
 io.open(OUT, 'w', encoding='utf-8', newline='\n').write(js)
 
