@@ -1362,8 +1362,6 @@
   }
 
   function init() {
-    if (window.KYD && KYD.collect) KYD.collect.mountPill('#navSync');
-
     /* מה שכל תפקידו דירוג — מוסתר ולא נמחק, כדי שההחזרה תהיה מתג אחד */
     if (!RATING_ON) {
       ['#rateToggle', '#exportBtn', '#voteSum', '#treeLeadRate'].forEach(function (sel) {

@@ -125,7 +125,9 @@
     listeners.forEach(function (fn) { try { fn(s); } catch (e) {} });
   }
 
-  /* חיווי קטן בפס הניווט. מוסתר כשהאיסוף מושבת. */
+  /* חיווי קטן בפס הניווט. מוסתר כשהאיסוף מושבת.
+     אף מסך אינו מרכיב אותו כרגע — הוא ירד מפס הניווט. הפונקציה נשארת כאן
+     כדי שסדנה פעילה תוכל להחזיר אותו בשורה אחת. */
   function mountPill(sel) {
     var host = document.querySelector(sel);
     if (!host) return;

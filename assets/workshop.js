@@ -613,7 +613,6 @@
 
   /* ---------- אתחול ---------- */
   function init() {
-    if (window.KYD && KYD.collect) KYD.collect.mountPill('#navSync');
     setupDash();
 
     var st = $('#steps');
