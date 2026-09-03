@@ -400,8 +400,8 @@ a:hover{text-decoration:underline}
    auto-fit עם תקרה לרוחב העמודה: שלושה נושאים נותנים שלוש עמודות, וסינון
    שמשאיר נושא אחד לא מותח אותו על כל הרוחב. */
 .hier{
-  display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,380px));
-  justify-content:start;align-items:start;gap:22px;margin-top:6px;
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,340px));
+  justify-content:start;align-items:start;gap:46px;margin-top:6px;
 }
 .hcol{min-width:0}
 .hcol h3{
