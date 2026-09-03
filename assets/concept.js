@@ -986,14 +986,18 @@
       o.push('<text x="' + (L - 8) + '" y="' + (y + 4).toFixed(1) + '" text-anchor="end" font-size="11" font-family="Space Grotesk,sans-serif" fill="#8A8886">' + fmtVal(d, v) + '</text>');
     }
 
-    /* שלוש דרגות: הבחירה עצמה, מה שקשור אליה בשיוך (מחוז↔נפות), וכל השאר */
+    /* שלוש דרגות: הבחירה עצמה, מה שקשור אליה בשיוך (מחוז↔נפות), וכל השאר.
+       ברמה הארצית אין מה להבליט מול מה — כל העמודות כחולות, בלי הדגשה של
+       אחת מהן ובלי מקרא. */
     var FILL = { on: '#0E9ADC', rel: '#A7D5EE', '': '#D8D8D8' };
     var INK = { on: '#1A1A2E', rel: '#454341', '': '#8A8886' };
+    var allOn = state.scope === NATIONAL;
     var nOn = 0, nRel = 0;
 
     bars.forEach(function (b, k) {
-      var rl = scopeRel(b.key);
-      if (rl === 'on') nOn++; else if (rl === 'rel') nRel++;
+      var rl = allOn ? 'on' : scopeRel(b.key);
+      if (!allOn) { if (rl === 'on') nOn++; else if (rl === 'rel') nRel++; }
+      var wt = allOn ? '400' : rl === 'on' ? '700' : rl === 'rel' ? '500' : '400';
       var cx = L + (k + 0.5) * bw;
       var yv = Y(b.v);
       var top = Math.min(yv, y0), hgt = Math.max(Math.abs(y0 - yv), 1.5);
@@ -1003,7 +1007,7 @@
       o.push('<text x="' + cx.toFixed(1) + '" y="' + ((b.v < 0 ? y0 : top) - 5).toFixed(1) + '" text-anchor="middle" font-size="' + fs +
         '" font-weight="700" font-family="Space Grotesk,sans-serif" fill="' + INK[rl] + '">' + fmtVal(d, b.v) + '</text>');
       o.push('<text x="' + cx.toFixed(1) + '" y="' + yName + '" text-anchor="middle" font-size="' + fs +
-        '" font-weight="' + (rl === 'on' ? '700' : rl === 'rel' ? '500' : '400') + '" fill="' + INK[rl] + '">' + esc(b.name) + '</text>');
+        '" font-weight="' + wt + '" fill="' + INK[rl] + '">' + esc(b.name) + '</text>');
       /* שם המחוז מתחת לשם הנפה — רק לנפות שחולקות שם עם נפה במחוז אחר */
       b.lines.forEach(function (ln, li) {
         o.push('<text x="' + cx.toFixed(1) + '" y="' + (yName + 12 * (li + 1)) + '" text-anchor="middle" font-size="' + subFs +
@@ -1100,7 +1104,7 @@
       h += '<section class="msec"><h4>פילוח לפי ' + esc(bdOn.join(' ולפי ')) + '</h4>' +
         '<div class="bd-sub">כל הערכים בחודש האחרון, מהגבוה לנמוך. ' +
         (!picked
-          ? 'בחירת מחוז או נפה בבורר רמת התצוגה תסמן את העמודה שלהם בכחול.'
+          ? 'ברמה הארצית כל העמודות באותו צבע; בחירת מחוז או נפה בבורר רמת התצוגה תבליט אותה מול השאר.'
           : hasRel
             ? 'העמודה של «' + esc(scopeLabel(state.scope)) + '» מסומנת בכחול, והעמודות המשויכות לה בכחול בהיר.'
             : 'העמודה של «' + esc(scopeLabel(state.scope)) + '» מסומנת בכחול. לנפה זו אין שיוך למחוז בקובץ הנתונים, ולכן אין מחוז מסומן.') +
