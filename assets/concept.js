@@ -668,6 +668,52 @@
     });
   }
 
+  /* קיבוץ לנושא → תת נושא, לפי סדר מפת הנושאים ולא לפי האלפבית. שתי תצוגות
+     הכרטיסים נשענות עליו, כדי שהסדר יהיה זהה בשתיהן.
+     → [{ theme, framework, count, subs: [{ sub, items }] }] */
+  function groupByTheme(items) {
+    var themeOrder = THEMES.map(function (t) { return t.name; });
+    var byTheme = {};
+    items.forEach(function (d) { (byTheme[d.theme] = byTheme[d.theme] || []).push(d); });
+
+    return Object.keys(byTheme).sort(function (a, b) {
+      var ia = themeOrder.indexOf(a), ib = themeOrder.indexOf(b);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    }).map(function (tn) {
+      var t = THEMES.filter(function (x) { return x.name === tn; })[0];
+      var subOrder = t ? t.subs : [];
+      var bySub = {};
+      byTheme[tn].forEach(function (d) { (bySub[d.sub] = bySub[d.sub] || []).push(d); });
+      var subs = Object.keys(bySub).sort(function (a, b) {
+        var ia = subOrder.indexOf(a), ib = subOrder.indexOf(b);
+        return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+      }).map(function (sn) {
+        return { sub: sn, items: bySub[sn].sort(function (a, b) { return a.order - b.order; }) };
+      });
+      return { theme: tn, framework: !!t, count: byTheme[tn].length, subs: subs };
+    });
+  }
+
+  /* ---------- 05ג · תצוגת כרטיסים היררכית ----------
+     עמודה לכל נושא, והמדדים שבתוכה זה מתחת לזה — כך נושא נקרא כיחידה אחת
+     ולא כשורה שנשברת באמצע. תתי הנושאים מפרידים בין המדדים בתוך העמודה.
+     מספר העמודות נגזר מהנושאים שנשארו אחרי הסינון, לא קבוע. */
+  function renderHier(list, groups) {
+    var wrap = el('div', 'hier');
+    groups.forEach(function (g) {
+      var col = el('div', 'hcol');
+      col.appendChild(el('h3', null, esc(g.theme) + '<span class="n">' + g.count + ' מדדים</span>'));
+      g.subs.forEach(function (s) {
+        col.appendChild(el('div', 'hsub', esc(s.sub)));
+        var cw = el('div', 'hcards');
+        s.items.forEach(function (d) { cw.appendChild(card(d)); });
+        col.appendChild(cw);
+      });
+      wrap.appendChild(col);
+    });
+    list.appendChild(wrap);
+  }
+
   /* ---------- רינדור הרשימה ---------- */
   function renderList() {
     var list = $('#list');
@@ -700,37 +746,22 @@
 
     if (state.view === 'table') { renderTable(list, items); return; }
 
-    var themeOrder = THEMES.map(function (t) { return t.name; });
-    var groups = {};
-    items.forEach(function (d) { (groups[d.theme] = groups[d.theme] || []).push(d); });
-    var names = Object.keys(groups).sort(function (a, b) {
-      var ia = themeOrder.indexOf(a), ib = themeOrder.indexOf(b);
-      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
-    });
+    var groups = groupByTheme(items);
+    if (state.view === 'hier') { renderHier(list, groups); return; }
 
-    names.forEach(function (tn) {
-      var g = el('div', 'grp');
-      var isFramework = themeOrder.indexOf(tn) >= 0;
-      g.appendChild(el('h3', null,
-        esc(tn) + '<span class="n">' + groups[tn].length + ' מדדים</span>' +
-        (isFramework ? '' : '<span class="n">· נתוני רקע, מחוץ למפת הנושאים</span>')));
+    groups.forEach(function (g) {
+      var box = el('div', 'grp');
+      box.appendChild(el('h3', null,
+        esc(g.theme) + '<span class="n">' + g.count + ' מדדים</span>' +
+        (g.framework ? '' : '<span class="n">· נתוני רקע, מחוץ למפת הנושאים</span>')));
 
-      var bySub = {};
-      groups[tn].forEach(function (d) { (bySub[d.sub] = bySub[d.sub] || []).push(d); });
-      var subOrder = isFramework ? (THEMES.filter(function (t) { return t.name === tn; })[0].subs) : Object.keys(bySub);
-      var subs = Object.keys(bySub).sort(function (a, b) {
-        var ia = subOrder.indexOf(a), ib = subOrder.indexOf(b);
-        return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
-      });
-
-      subs.forEach(function (sn) {
-        if (subs.length > 1 || state.sub == null) g.appendChild(el('div', 'subhead', esc(sn)));
+      g.subs.forEach(function (s) {
+        if (g.subs.length > 1 || state.sub == null) box.appendChild(el('div', 'subhead', esc(s.sub)));
         var cw = el('div', 'cards');
-        bySub[sn].sort(function (a, b) { return a.order - b.order; })
-          .forEach(function (d) { cw.appendChild(card(d)); });
-        g.appendChild(cw);
+        s.items.forEach(function (d) { cw.appendChild(card(d)); });
+        box.appendChild(cw);
       });
-      list.appendChild(g);
+      list.appendChild(box);
     });
   }
 
