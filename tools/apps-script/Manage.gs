@@ -275,6 +275,7 @@ function mBootstrap() {
     changes: chg.slice(Math.max(0, chg.length - 300)).reverse(),
     lists: LISTS,
     ingested: ing,
+    scores: mScores(),
     serverNow: mStamp()
   };
 }
@@ -544,9 +545,43 @@ function mIngest() {
   return { added: fresh.length, updated: updates.length };
 }
 
+/**
+ * ציון ממוצע לכל מדד, מלשונית ratings — שם שכל שורה בה היא משיב אחד ומדד
+ * אחד (upsert לפי rid+מזהה מדד), ולכן ספירת השורות היא ספירת המדרגים.
+ *
+ * שורה בלי דירוג אינה נספרת: אפס בעמודה «דירוג» הוא ניקוי הדירוג במסך
+ * הציבורי, לא ציון גרוע, וספירתו כאחד הייתה מושכת את הממוצע כלפי מטה. שורה
+ * כזו עדיין מגיעה למסך כהערה, אם יש בה טקסט — זה תפקידו של mIngest.
+ *
+ *   → { '1031': { avg: 4.25, n: 8 }, … }
+ */
+function mScores() {
+  var sh = book().getSheetByName('ratings');
+  var out = {};
+  if (!sh || sh.getLastRow() < 2) return out;
+
+  var m = mMap(sh);
+  if (m['מזהה מדד'] === undefined || m['דירוג'] === undefined) return out;
+
+  var vals = sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).getValues();
+  for (var r = 0; r < vals.length; r++) {
+    var id = mCell(vals[r][m['מזהה מדד']]).trim();
+    var stars = Number(vals[r][m['דירוג']]);
+    if (!id || !stars || stars < 1) continue;
+    if (!out[id]) out[id] = { sum: 0, n: 0 };
+    out[id].sum += stars;
+    out[id].n++;
+  }
+
+  Object.keys(out).forEach(function (id) {
+    out[id] = { avg: Math.round((out[id].sum / out[id].n) * 100) / 100, n: out[id].n };
+  });
+  return out;
+}
+
 function mIngestNow() {
   var r = mIngest();
-  return { ok: true, ingested: r, comments: mRead(mSheet(M.CMT, CMT_COLS)) };
+  return { ok: true, ingested: r, comments: mRead(mSheet(M.CMT, CMT_COLS)), scores: mScores() };
 }
 
 /**

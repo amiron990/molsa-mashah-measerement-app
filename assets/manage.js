@@ -20,7 +20,7 @@
 
   var S = {
     who: '', pass: '',
-    ind: [], cmt: [], chg: [], lists: {},
+    ind: [], cmt: [], chg: [], lists: {}, score: {},
     view: 'ind', sel: null, openOnly: false,
     reply: null      /* מזהה ההערה שתיבת התגובה פתוחה עליה */
   };
@@ -190,6 +190,7 @@
     return api(action, extra).then(function (r) {
       if (r.indicators) S.ind = r.indicators;
       if (r.comments) S.cmt = r.comments;
+      if (r.scores) S.score = r.scores;
       if (r.changes) S.chg = r.changes;
       if (r.indicator) mergeInd(r.indicator);
       if (okMsg) toast(okMsg);
@@ -256,6 +257,29 @@
   /* ---------- תצוגת המדדים ---------- */
 
   /** הערות פתוחות של מדד — רק הערות-אם, לא תגובות */
+
+  /** הציון הממוצע שנאסף עד כה למדד, או null אם טרם דירגו אותו */
+  function scoreOf(id) {
+    var s = S.score[String(id)];
+    return s && s.n ? s : null;
+  }
+
+  /* חמישה כוכבים במילוי חלקי לפי הממוצע — הכוכב האחרון נחתך בחלקו, כדי
+     ש-3.4 ייראה שונה מ-3.8 ולא ייעגל לאותה תמונה. */
+  function starBar(avg) {
+    var pc = Math.max(0, Math.min(100, (avg / 5) * 100));
+    return '<span class="sbar"><span class="on" style="width:' + pc.toFixed(1) + '%">★★★★★</span>' +
+      '<span class="off">★★★★★</span></span>';
+  }
+
+  /** תא הציון בטבלה: ממוצע, כוכבים ומספר המדרגים */
+  function scoreCell(id) {
+    var s = scoreOf(id);
+    if (!s) return '<td><span class="sc zero">—</span></td>';
+    return '<td><span class="sc" title="' + s.n + ' מדרגים">' +
+      '<b>' + s.avg.toFixed(1) + '</b>' + starBar(s.avg) +
+      '<i>' + s.n + '</i></span></td>';
+  }
   function openCount(id) {
     var n = 0;
     for (var i = 0; i < S.cmt.length; i++) {
@@ -304,7 +328,7 @@
   function renderInd() {
     $('indHead').innerHTML = '<tr>' +
       TBL_COLS.map(function (h) { return '<th>' + esc(h) + '</th>'; }).join('') +
-      '<th>הערות פתוחות</th><th>עודכן</th></tr>';
+      '<th>ציון ממוצע</th><th>הערות פתוחות</th><th>עודכן</th></tr>';
 
     var rows = S.ind.filter(matches).sort(function (a, b) {
       return String(a['נושא']).localeCompare(String(b['נושא']), 'he') ||
@@ -312,7 +336,7 @@
              String(a['שם המדד']).localeCompare(String(b['שם המדד']), 'he');
     });
 
-    var span = TBL_COLS.length + 2;
+    var span = TBL_COLS.length + 3;
     if (!rows.length) {
       $('indBody').innerHTML = '<tr><td colspan="' + span + '" class="empty">אין מדדים תואמים</td></tr>';
       return;
@@ -332,6 +356,7 @@
         '<td>' + stPill(r['סטטוס']) + '</td>' +
         '<td><span class="mp' + (inMap(r) === '1' ? ' on' : '') + '">' +
           (inMap(r) === '1' ? '1' : '0') + '</span></td>' +
+        scoreCell(r['מזהה']) +
         '<td><span class="oc' + (n ? '' : ' zero') + '">' + (n || '—') + '</span></td>' +
         '<td class="mut">' + esc(r['עודכן בתאריך']) + '</td>' +
         '</tr>';
@@ -420,6 +445,13 @@
         '</div>';
 
     if (!isNew) {
+      var sc = scoreOf(r['מזהה']);
+      html += '<div class="msec"><h4>ציון ממוצע עד כה</h4>' +
+        (sc
+          ? '<div class="scbig"><b>' + sc.avg.toFixed(1) + '</b><span class="of">מתוך 5</span>' +
+            starBar(sc.avg) + '<span class="n">' + sc.n + ' מדרגים</span></div>'
+          : '<div class="mg-note">טרם דורג. הציון נאסף מתיבת ההערכה שבתחתית פירוט המדד במסך «סקירת מדדים».</div>') +
+        '</div>';
       html += '<div class="msec" id="dThread"><h4>הערות ודיון</h4>' +
                 threadHtml(r['מזהה'], r['שם המדד']) + '</div>' +
               '<div class="msec"><h4>היסטוריית שינויים</h4>' + histHtml(histOf(r['מזהה'])) + '</div>';
