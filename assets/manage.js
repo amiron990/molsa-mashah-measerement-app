@@ -102,7 +102,8 @@
     pot: {
       fields: POT_FIELDS, idCol: 'מזהה זמני', nameCol: 'שם מדד', rows: function () { return S.pot; },
       defs: { 'סטטוס': 'בחינה ראשונית' },
-      thread: 'pot', reason: true, noun: 'מדד פוטנציאלי', fresh: 'מדד פוטנציאלי חדש', add: 'הוספת מדד פוטנציאלי'
+      thread: 'pot', reason: true, noun: 'מדד פוטנציאלי', fresh: 'מדד פוטנציאלי חדש', add: 'הוספת מדד פוטנציאלי',
+      del: true
     },
     tsk: {
       fields: TSK_FIELDS, idCol: 'מזהה משימה', nameCol: 'כותרת המשימה', rows: function () { return S.tsk; },
@@ -162,6 +163,7 @@
     saveIndicator: 'שומר…',
     saveRow: 'שומר…',
     retireIndicator: 'מוריד מדד…',
+    deleteRow: 'מוחק…',
     addComment: 'שומר הערה…',
     updateComment: 'מעדכן הערה…',
     ingest: 'מושך הערות מהסדנה…',
@@ -775,6 +777,7 @@
     html += '</div><div class="df">' +
       '<button class="btn-primary" type="button" id="dSave">' + (isNew ? e.add : 'שמירה') + '</button>' +
       (!isNew && kind === 'ind' ? '<button class="btn-ghost" type="button" id="dRetire">הורדת מדד</button>' : '') +
+      (!isNew && e.del ? '<button class="btn-ghost mg-del" type="button" id="dDelete">מחיקה</button>' : '') +
       '<span class="spacer"></span><button class="btn-ghost" type="button" id="dCancel">סגירה</button></div>';
 
     var dr = $('drawer');
@@ -805,6 +808,7 @@
     $('dCancel').addEventListener('click', closeDrawer);
     $('dSave').addEventListener('click', function () { saveDrawer(kind, isNew ? '' : r[e.idCol]); });
     if (!isNew && kind === 'ind') $('dRetire').addEventListener('click', function () { retire(r); });
+    if (!isNew && e.del) $('dDelete').addEventListener('click', function () { remove(kind, r); });
     if (!isNew && e.thread) bindThread($('dThread'), r[e.idCol], name, refreshThread, e.thread);
   }
 
@@ -863,6 +867,19 @@
     if (!reason) return toast('מלאו את סיבת ההורדה — היא נרשמת ביומן', true);
     if (!w.confirm('להוריד את «' + r['שם המדד'] + '»?\nהשורה נשמרת בגיליון והסטטוס משתנה ל«יורד».')) return;
     run('retireIndicator', { id: r['מזהה'], reason: reason }, 'המדד ירד').then(closeDrawer).catch(function () {});
+  }
+
+  /**
+   * מחיקה של ממש — השורה יוצאת מהגיליון. השרת שומר את כל תוכנה ביומן
+   * השינויים, ולכן גם כאן הסיבה חובה: היא מה שיסביר את המחיקה בדיעבד.
+   */
+  function remove(kind, r) {
+    var e = ENT[kind];
+    var reason = $('f_reason').value.trim();
+    if (!reason) return toast('מלאו את סיבת המחיקה — היא נרשמת ביומן', true);
+    if (!w.confirm('למחוק את «' + (r[e.nameCol] || r[e.idCol]) + '»?\n' +
+        'השורה תימחק מהגיליון. תוכנה נשמר ביומן השינויים, וההערות עליו נשארות.')) return;
+    run('deleteRow', { kind: kind, id: r[e.idCol], reason: reason }, 'נמחק').then(closeDrawer).catch(function () {});
   }
 
   /* ---------- הערות ---------- */
@@ -1085,7 +1102,8 @@
         '<td>' + esc(c['סוג פעולה']) + '</td>' +
         '<td class="id">' + esc(c['מזהה מדד']) + '</td>' +
         '<td class="mut">' + esc(c['שדה שהשתנה']) + '</td>' +
-        '<td class="mut">' + esc(c['ערך קודם']) + '</td>' +
+        /* במחיקה «ערך קודם» הוא כל השורה כ-JSON — מקוצר כאן, המלא בריחוף */
+        '<td class="mut" title="' + esc(c['ערך קודם']) + '">' + esc(clip(c['ערך קודם'], 80)) + '</td>' +
         '<td>' + esc(c['ערך חדש']) + '</td>' +
         '<td class="mut">' + esc(c['סיבה']) + '</td></tr>';
     }).join('');

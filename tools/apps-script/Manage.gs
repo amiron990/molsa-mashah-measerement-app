@@ -74,7 +74,8 @@ var TSK_COLS = [
  */
 var ENT = {
   pot: { sheet: M.POT, cols: POT_COLS, idCol: 'מזהה זמני', nameCol: 'שם מדד', prefix: 'POT',
-         dates: ['נוצר בתאריך', 'עודכן בתאריך'], defs: { 'סטטוס': 'בחינה ראשונית' } },
+         dates: ['נוצר בתאריך', 'עודכן בתאריך'], defs: { 'סטטוס': 'בחינה ראשונית' },
+         deletable: true, key: 'potentials' },
   tsk: { sheet: M.TSK, cols: TSK_COLS, idCol: 'מזהה משימה', nameCol: 'כותרת המשימה', prefix: 'TSK',
          dates: ['תאריך פתיחה', 'תאריך לביצוע', 'עודכן בתאריך'], defs: { 'סטטוס': 'טרם החל' } }
 };
@@ -293,6 +294,7 @@ function manageApi(body) {
       case 'saveIndicator':   return reply(mSaveIndicator(body.indicator, body.reason, who));
       case 'retireIndicator': return reply(mRetire(body.id, body.reason, who));
       case 'saveRow':         return reply(mSaveRow(body.kind, body.row, body.reason, who));
+      case 'deleteRow':       return reply(mDeleteRow(body.kind, body.id, body.reason, who));
       case 'addComment':      return reply(mAddComment(body.comment, who, body.scope));
       case 'updateComment':   return reply(mUpdateComment(body.id, body.patch, who, body.scope));
       case 'ingest':          return reply(mIngestNow());
@@ -589,6 +591,31 @@ function mSaveRow(kind, data, reason, who) {
     sh.getRange(at, m[h] + 1).setValue(blank(data[h]));
   }
   return { ok: true, kind: kind, row: mOne(sh, at) };
+}
+
+/**
+ * מחיקה של שורה — רק לישויות שמסומנות deletable (כרגע מדדים פוטנציאליים).
+ * בניגוד להורדת מדד, השורה נעלמת מהגיליון. לכן היומן מקבל את כל תוכנה
+ * כ-JSON ב«ערך קודם» — זה העותק היחיד שנשאר, ואפשר לשחזר ממנו ידנית.
+ * ההערות על הפריט נשארות בלשונית שלהן: הן חלק מהתיעוד של ההחלטה למחוק.
+ */
+function mDeleteRow(kind, id, reason, who) {
+  var def = ENT[kind];
+  if (!def || !def.deletable) return { ok: false, error: 'מחיקה אינה אפשרית כאן.' };
+  if (!String(blank(reason)).trim()) return { ok: false, error: 'חסרה סיבת המחיקה.' };
+
+  var sh = mSheet(def.sheet, def.cols);
+  var at = mFindRowBy(sh, def.idCol, id);
+  if (!at) return { ok: false, error: 'לא נמצא ' + id };
+
+  var snap = mOne(sh, at);
+  delete snap._row;
+  mLog(who, id, 'מחיקה', '—', JSON.stringify(snap), '', reason);
+  sh.deleteRow(at);
+
+  var out = { ok: true, deleted: id };
+  out[def.key] = mRead(sh);
+  return out;
 }
 
 /** עמודות התאריך של שורה נתונה כטקסט — לפני הכתיבה, כדי שהערך יישמר כפי שנשלח */
