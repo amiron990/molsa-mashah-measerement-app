@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>מצפן רשויות מקומיות — ניהול מדדים</title>
+<title>מצפן רשויות מקומיות — ניהול</title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/app.css?v=20260903-11">
+<link rel="stylesheet" href="assets/app.css?v=20260929-1">
 <style>
   /* ===== מסך הניהול — מה שאין במערכת העיצוב המשותפת ===================== */
 
@@ -190,6 +190,45 @@
     z-index:200;opacity:0;transition:opacity .2s;pointer-events:none;box-shadow:0 8px 26px rgba(10,14,39,.3);
   }
   .toast.on{opacity:.97}
+
+  /* ===== מעבר בין מסכי הניהול ===== */
+  .mg-screens{display:flex;gap:4px;border-bottom:1.5px solid var(--n2);margin:0 0 20px;overflow-x:auto}
+  .mg-screens button{
+    border:0;background:none;font-family:var(--font);font-size:14px;font-weight:500;color:var(--n3);
+    padding:10px 16px;cursor:pointer;white-space:nowrap;border-bottom:2.5px solid transparent;margin-bottom:-1.5px;
+  }
+  .mg-screens button:hover{color:var(--blue)}
+  .mg-screens button.on{color:var(--n5);font-weight:700;border-bottom-color:var(--blue)}
+
+  /* ===== מסך ראשי ===== */
+  .mg-kpis{grid-template-columns:repeat(4,1fr);margin-bottom:22px}
+  @media (max-width:900px){.mg-kpis{grid-template-columns:repeat(2,1fr)}}
+  .mg-kpi{border:0;font:inherit;text-align:start;cursor:pointer;width:100%;transition:background .12s}
+  .mg-kpi:hover{background:#F4FAFD}
+  .mg-kpi:hover .l{color:var(--blue)}
+  .mg-kpi:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
+  .late{color:var(--bad-ink);font-weight:700}
+
+  .mg-charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:20px}
+  .mg-charts .card{margin-bottom:0}
+  .mg-charts .bars{max-width:none}
+  @media (max-width:500px){.mg-charts{grid-template-columns:1fr}}
+  /* שורת גרף כפתור: כל השורה היא אזור הלחיצה, רחב מהעמודה עצמה */
+  .mg-bar{
+    border:0;background:none;font:inherit;width:100%;text-align:start;cursor:pointer;
+    padding:3px 4px;margin:-3px -4px;border-radius:6px;transition:background .12s;
+  }
+  .mg-bar:hover{background:#F4FAFD}
+  .mg-bar:hover .lb{color:var(--blue)}
+  .mg-bar:focus-visible{outline:2px solid var(--blue)}
+  .mg-bar .nt{font-size:11.5px;color:var(--bad-ink);font-weight:700;white-space:nowrap}
+  .mg-tbl td.late{color:var(--bad-ink);font-weight:700}
+
+  /* כותרת ביניים בטופס — מפרידה בין הפרמטרים העסקיים לאנליטיים */
+  .mg-sep{
+    grid-column:1/-1;font-size:13px;font-weight:700;color:var(--n5);
+    padding:10px 0 6px;margin:4px 0 10px;border-bottom:1px solid var(--n2);
+  }
   .toast.bad{background:var(--bad-ink)}
   .gate-err{color:var(--bad-ink);font-size:12.5px;min-height:17px;margin:-6px 0 10px}
 
@@ -212,19 +251,25 @@
     <span class="sep"></span>
     <a href="index.html">תפיסת המדידה</a>
     <a href="map.html">סקירת מדדים</a>
-    <a href="manage.html" class="on">ניהול מדדים</a>
+    <a href="manage.html" class="on">ניהול</a>
   </div>
   <div class="navuser" id="navUser"></div>
 </nav>
 
 <div class="wrap">
 
+  <!-- מעבר בין מסכי הניהול. ה-hash שבכתובת (#home, #ind, #pot, #tsk) שומר את המסך ברענון. -->
+  <div class="mg-screens" id="screenTabs" role="tablist" aria-label="מסכי הניהול">
+    <button type="button" data-s="home" class="on">מסך ראשי</button>
+    <button type="button" data-s="ind">מדדים</button>
+    <button type="button" data-s="pot">פוטנציאל מדדים</button>
+    <button type="button" data-s="tsk">משימות</button>
+  </div>
+
   <div class="page-head">
     <div class="ht">
-      <h1>ניהול מדדים</h1>
-      <div class="tagline">
-        המדדים, ההערות והחלטות הצוות — כולם בגיליון אחד. כל שינוי נרשם ביומן עם השם, המועד והסיבה.
-      </div>
+      <h1 id="pgTitle">ניהול</h1>
+      <div class="tagline" id="pgTag"></div>
     </div>
     <div class="pa">
       <button class="btn-ghost" id="ingestBtn" type="button" title="סריקה חוזרת של תשובות הסדנה">משיכת הערות מהסדנה</button>
@@ -232,6 +277,26 @@
       <button class="btn-ghost" id="reloadBtn" type="button">רענון</button>
     </div>
   </div>
+
+  <!-- ===== מסך ראשי ===== -->
+  <section id="scr_home">
+    <div class="kpis mg-kpis" id="homeKpis"></div>
+    <div class="mg-charts">
+      <section class="card">
+        <h2>מדדים פוטנציאליים לפי נושא</h2>
+        <p class="lead">כל חמשת נושאי המפה, גם אלה שעוד אין בהם מדד פוטנציאלי. ריחוף מציג את הפירוט לפי סטטוס, ולחיצה פותחת את הרשימה המסוננת.</p>
+        <div class="bars" id="potBars"></div>
+      </section>
+      <section class="card">
+        <h2>משימות פתוחות לפי גורם אחראי</h2>
+        <p class="lead">משימות שטרם בוצעו, מהגורם העמוס ביותר. משימה שמועד הביצוע שלה עבר נספרת כ«באיחור».</p>
+        <div class="bars" id="tskBars"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ===== מסך המדדים ===== -->
+  <section id="scr_ind" hidden>
 
   <div id="seedBox"></div>
 
@@ -261,6 +326,7 @@
         <option value="">במפה ומחוצה לה</option>
       </select>
       <div class="chips" style="margin-inline-start:auto">
+        <button class="chip" id="noRefOnly" type="button" title="בלי דירוג ובלי הערה">רק ללא התייחסות</button>
         <button class="chip" id="openOnly" type="button">רק עם הערות פתוחות</button>
         <button class="btn-primary" id="newBtn" type="button">+ מדד חדש</button>
       </div>
@@ -289,11 +355,80 @@
 
   <!-- ===== יומן שינויים ===== -->
   <section id="viewChg" hidden>
-    <p class="mg-note">300 הרשומות האחרונות, מהחדשה לישנה. היומן המלא נשמר בלשונית «יומן שינויים» בגיליון.</p>
+    <p class="mg-note">300 הרשומות האחרונות, מהחדשה לישנה, של כל ממשק הניהול — מדדים, מדדים פוטנציאליים (POT-…) ומשימות (TSK-…). היומן המלא נשמר בלשונית «יומן שינויים» בגיליון.</p>
     <div class="tblwrap">
       <table class="tbl mg-tbl">
-        <thead><tr><th>מתי</th><th>מי</th><th>פעולה</th><th>מדד</th><th>שדה</th><th>מ־</th><th>ל־</th><th>סיבה</th></tr></thead>
+        <thead><tr><th>מתי</th><th>מי</th><th>פעולה</th><th>פריט</th><th>שדה</th><th>מ־</th><th>ל־</th><th>סיבה</th></tr></thead>
         <tbody id="chgBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  </section>
+
+  <!-- ===== מסך פוטנציאל המדדים ===== -->
+  <section id="scr_pot" hidden>
+    <div class="filters">
+      <div class="mg-tabs" id="potTabs" role="group" aria-label="תצוגה">
+        <button type="button" data-v="pot" class="on">מדדים פוטנציאליים<span class="c" id="cPot"></span></button>
+        <button type="button" data-v="cmt">הערות<span class="c" id="cPcmt"></span></button>
+      </div>
+    </div>
+
+    <section id="viewPot">
+      <div class="filters">
+        <label class="search">
+          <input type="search" id="pq" placeholder="חיפוש מדד פוטנציאלי…" aria-label="חיפוש מדד פוטנציאלי">
+          <svg viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        </label>
+        <select class="fsel" id="pTheme" aria-label="סינון לפי נושא"></select>
+        <select class="fsel" id="pSub" aria-label="סינון לפי תת נושא"></select>
+        <select class="fsel" id="pStatus" aria-label="סינון לפי סטטוס"></select>
+        <select class="fsel" id="pSource" aria-label="סינון לפי מקור הנתונים"></select>
+        <div class="chips" style="margin-inline-start:auto">
+          <button class="chip" id="popenOnly" type="button">רק עם הערות פתוחות</button>
+          <button class="btn-primary" id="newPotBtn" type="button">+ מדד פוטנציאלי</button>
+        </div>
+      </div>
+      <div class="tblwrap">
+        <table class="tbl mg-tbl">
+          <thead><tr><th>מזהה זמני</th><th>שם מדד</th><th>נושא</th><th>תת נושא</th><th>מקור הנתונים</th><th>יחידת מידה</th><th>סטטוס</th><th>הערות פתוחות</th><th>עודכן</th></tr></thead>
+          <tbody id="potBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="viewPcmt" hidden>
+      <p class="mg-note" id="pcmtNote"></p>
+      <div class="filters">
+        <label class="search">
+          <input type="search" id="pcq" placeholder="חיפוש בהערות…" aria-label="חיפוש בהערות">
+          <svg viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        </label>
+        <select class="fsel" id="pcStatus" aria-label="סינון לפי סטטוס טיפול"></select>
+      </div>
+      <div id="pcmtList"></div>
+    </section>
+  </section>
+
+  <!-- ===== מסך המשימות ===== -->
+  <section id="scr_tsk" hidden>
+    <div class="filters">
+      <label class="search">
+        <input type="search" id="tq" placeholder="חיפוש משימה…" aria-label="חיפוש משימה">
+        <svg viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      </label>
+      <select class="fsel" id="tStatus" aria-label="סינון לפי סטטוס"></select>
+      <select class="fsel" id="tOwner" aria-label="סינון לפי גורם לביצוע"></select>
+      <div class="chips" style="margin-inline-start:auto">
+        <button class="chip" id="lateOnly" type="button">רק באיחור</button>
+        <button class="btn-primary" id="newTskBtn" type="button">+ משימה</button>
+      </div>
+    </div>
+    <div class="tblwrap">
+      <table class="tbl mg-tbl">
+        <thead><tr><th>מזהה</th><th>כותרת המשימה</th><th>גורם לביצוע</th><th>נפתחה</th><th>לביצוע עד</th><th>סטטוס</th><th>עודכן</th></tr></thead>
+        <tbody id="tskBody"></tbody>
       </table>
     </div>
   </section>
@@ -309,7 +444,7 @@
 <!-- שער כניסה -->
 <div class="ovl gate" id="gate" role="dialog" aria-modal="true" aria-labelledby="gTitle">
   <form class="modal gatebox" id="gateForm">
-    <h3 id="gTitle">ניהול מדדים</h3>
+    <h3 id="gTitle">ממשק הניהול</h3>
     <p>המסך הזה כותב לגיליון. נדרשת סיסמת ניהול, והשם שתזינו נרשם ביומן השינויים לצד כל פעולה.</p>
     <label class="fld">
       <span>שם מלא</span>
@@ -332,8 +467,8 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="assets/data.js?v=20260903-11"></script>
-<script src="assets/collect.js?v=20260903-11"></script>
-<script src="assets/manage.js?v=20260903-11"></script>
+<script src="assets/data.js?v=20260929-1"></script>
+<script src="assets/collect.js?v=20260929-1"></script>
+<script src="assets/manage.js?v=20260929-1"></script>
 </body>
 </html>

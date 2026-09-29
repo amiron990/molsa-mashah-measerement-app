@@ -15,7 +15,10 @@
  * משורה אחת ב-doPost שם — כל בקשה שיש בה action מגיעה לכאן.
  */
 
-var M = { IND: 'אינדיקטורים', CMT: 'הערות ודיון', CHG: 'יומן שינויים' };
+var M = {
+  IND: 'אינדיקטורים', CMT: 'הערות ודיון', CHG: 'יומן שינויים',
+  POT: 'מדדים פוטנציאליים', PCMT: 'הערות מדדים פוטנציאליים', TSK: 'משימות'
+};
 
 /** עמודות המדד: תחילה כל שדה שקיים ב-INDICATORS שב-data.js, ואז שדות הניהול */
 var IND_COLS = [
@@ -50,21 +53,59 @@ var CHG_COLS = [
 /** שדות שאין טעם לתעד בנפרד ביומן — הם נגזרים מהשינוי עצמו */
 var CHG_SKIP = { 'עודכן בתאריך': 1, 'גרסה': 1, 'סיבת שינוי אחרונה': 1 };
 
+/** מדד פוטנציאלי: פרמטרים עסקיים, ואחריהם פרמטרים אנליטיים ושדות ניהול */
+var POT_COLS = [
+  'מזהה זמני', 'שם מדד', 'הסבר על שיטת המדידה', 'נושא', 'תת נושא', 'סטטוס',
+  'אופן חישוב', 'מקור הנתונים', 'יחידת מידה', 'כיוון רצוי',
+  'נוצר בתאריך', 'עודכן בתאריך', 'סיבת שינוי אחרונה'
+];
+
+var TSK_COLS = [
+  'מזהה משימה', 'כותרת המשימה', 'פירוט המשימה', 'גורם לביצוע',
+  'תאריך פתיחה', 'תאריך לביצוע', 'סטטוס', 'הערות ביצוע', 'עודכן בתאריך'
+];
+
+/**
+ * הישויות שנשמרות דרך mSaveRow. המדדים עצמם אינם כאן — יש להם גרסה,
+ * הורדה רכה ומרחב מזהים מספרי, ולכן הם נשארים ב-mSaveIndicator.
+ *   idCol   — העמודה שמזהה שורה; ריק בשמירה = המזהה הבא בתור עם prefix
+ *   dates   — עמודות שנכתבות כטקסט, כדי ש-Sheets לא ימיר אותן לתאריך
+ *   defs    — ערכי ברירת מחדל לשורה חדשה
+ */
+var ENT = {
+  pot: { sheet: M.POT, cols: POT_COLS, idCol: 'מזהה זמני', nameCol: 'שם מדד', prefix: 'POT',
+         dates: ['נוצר בתאריך', 'עודכן בתאריך'], defs: { 'סטטוס': 'בחינה ראשונית' } },
+  tsk: { sheet: M.TSK, cols: TSK_COLS, idCol: 'מזהה משימה', nameCol: 'כותרת המשימה', prefix: 'TSK',
+         dates: ['תאריך פתיחה', 'תאריך לביצוע', 'עודכן בתאריך'], defs: { 'סטטוס': 'טרם החל' } }
+};
+
+/** לשונית ההערות וקידומת המזהה לכל תחום. לתחום pot יש לשונית משלו באותן עמודות. */
+var CMT_SCOPES = {
+  ind: { sheet: M.CMT, prefix: 'CMT', key: 'comments' },
+  pot: { sheet: M.PCMT, prefix: 'PCM', key: 'potComments' }
+};
+
 /** ערכים לרשימות הנפתחות במסך הניהול */
 var LISTS = {
   'סטטוס': ['פעיל', 'בבחינה', 'בתהליך פיתוח', 'יורד'],
   'סוג הערה': ['ניסוח', 'הגדרה', 'מקור נתונים', 'רלוונטיות', 'דירוג מדד', 'שאלת סדנה', 'כללי', 'תגובה'],
-  'סטטוס טיפול': ['פתוח', 'בבדיקה', 'טופל', 'נדחה']
+  'סטטוס טיפול': ['פתוח', 'בבדיקה', 'טופל', 'נדחה'],
+  'סטטוס פוטנציאל': ['בחינה ראשונית', 'בבדיקה מול יחידת הדאטה', 'בתהליך שליפה',
+                     'בתהליך בדיקה של שליפות הנתונים', 'מחכה לאישור עסקי', 'אושר'],
+  'סטטוס משימה': ['טרם החל', 'בתהליך', 'בוצע']
 };
 
 /* ---------- הקמה ---------- */
 
-/** הריצו פעם אחת מהעורך. יוצר את שלוש הלשוניות; אינו נוגע בקיימות. */
+/** הריצו פעם אחת מהעורך. יוצר את הלשוניות החסרות; אינו נוגע בקיימות. */
 function mSetup() {
-  var made = [M.IND, M.CMT, M.CHG];
+  var made = [M.IND, M.CMT, M.CHG, M.POT, M.PCMT, M.TSK];
   mSheet(M.IND, IND_COLS);
   mSheet(M.CMT, CMT_COLS);
   mSheet(M.CHG, CHG_COLS);
+  mSheet(M.POT, POT_COLS);
+  mSheet(M.PCMT, CMT_COLS);
+  mSheet(M.TSK, TSK_COLS);
   mRenameCols();
   Logger.log('הגיליון: ' + book().getName());
   Logger.log('נוצרו או קיימות הלשוניות: ' + made.join(', '));
@@ -251,8 +292,9 @@ function manageApi(body) {
       case 'seed':            return reply(mSeed(body.indicators, who));
       case 'saveIndicator':   return reply(mSaveIndicator(body.indicator, body.reason, who));
       case 'retireIndicator': return reply(mRetire(body.id, body.reason, who));
-      case 'addComment':      return reply(mAddComment(body.comment, who));
-      case 'updateComment':   return reply(mUpdateComment(body.id, body.patch, who));
+      case 'saveRow':         return reply(mSaveRow(body.kind, body.row, body.reason, who));
+      case 'addComment':      return reply(mAddComment(body.comment, who, body.scope));
+      case 'updateComment':   return reply(mUpdateComment(body.id, body.patch, who, body.scope));
       case 'ingest':          return reply(mIngestNow());
       case 'export':          return reply({ ok: true, indicators: mExport() });
       default:                return reply({ ok: false, error: 'פעולה לא מוכרת: ' + body.action });
@@ -273,6 +315,9 @@ function mBootstrap() {
     indicators: mRead(mSheet(M.IND, IND_COLS)),
     comments: mRead(mSheet(M.CMT, CMT_COLS)),
     changes: chg.slice(Math.max(0, chg.length - 300)).reverse(),
+    potentials: mRead(mSheet(M.POT, POT_COLS)),
+    potComments: mRead(mSheet(M.PCMT, CMT_COLS)),
+    tasks: mRead(mSheet(M.TSK, TSK_COLS)),
     lists: LISTS,
     ingested: ing,
     scores: mScores(),
@@ -421,11 +466,24 @@ function mOne(sh, at) {
 
 /* ---------- הערות ---------- */
 
-function mAddComment(c, who) {
+/** התחום של הערה: ind — מדדים, pot — מדדים פוטנציאליים. ברירת המחדל ind. */
+function mScope(scope) {
+  return CMT_SCOPES[scope] || CMT_SCOPES.ind;
+}
+
+/** התשובה לפעולת הערה: הלשונית המעודכנת, תחת המפתח של התחום שלה */
+function mCmtReply(sc, sh) {
+  var out = { ok: true };
+  out[sc.key] = mRead(sh);
+  return out;
+}
+
+function mAddComment(c, who, scope) {
   if (!c || !String(blank(c['תוכן ההערה'])).trim()) return { ok: false, error: 'הערה ריקה.' };
-  var sh = mSheet(M.CMT, CMT_COLS);
+  var sc = mScope(scope);
+  var sh = mSheet(sc.sheet, CMT_COLS);
   var parent = String(blank(c['בתגובה להערה'])).trim();
-  var id = mNextId('CMT', M.CMT, 'מזהה הערה');
+  var id = mNextId(sc.prefix, sc.sheet, 'מזהה הערה');
 
   sh.appendRow(mRow(sh, {
     'מזהה הערה': id,
@@ -443,11 +501,12 @@ function mAddComment(c, who) {
 
   mLog(who, blank(c['מזהה מדד']), 'הערה', parent ? 'תגובה' : 'הערה חדשה', '',
        String(c['תוכן ההערה']).slice(0, 120), parent ? ('בתגובה ל-' + parent) : '');
-  return { ok: true, comments: mRead(sh) };
+  return mCmtReply(sc, sh);
 }
 
-function mUpdateComment(id, patch, who) {
-  var sh = mSheet(M.CMT, CMT_COLS);
+function mUpdateComment(id, patch, who, scope) {
+  var sc = mScope(scope);
+  var sh = mSheet(sc.sheet, CMT_COLS);
   var m = mMap(sh);
   var at = null;
   var rows = mRead(sh);
@@ -472,7 +531,83 @@ function mUpdateComment(id, patch, who) {
   if (patch['סטטוס טיפול'] === 'טופל' || patch['סטטוס טיפול'] === 'נדחה') {
     sh.getRange(at, m['מי טיפל'] + 1).setValue(who);
   }
-  return { ok: true, comments: mRead(sh) };
+  return mCmtReply(sc, sh);
+}
+
+/* ---------- מדדים פוטנציאליים ומשימות ---------- */
+
+/**
+ * שמירת שורה של מדד פוטנציאלי (kind=pot) או משימה (kind=tsk).
+ * אותה שיטה כמו mSaveIndicator: שורה חדשה מקבלת מזהה ונרשמת ביומן כ«הוספה»,
+ * ובשורה קיימת נכתב ביומן כל שדה שהשתנה, עם הערך הקודם, החדש והסיבה.
+ * היומן משותף לכל הישויות — «מזהה מדד» בו מחזיק גם POT-… ו-TSK-….
+ */
+function mSaveRow(kind, data, reason, who) {
+  var def = ENT[kind];
+  if (!def) return { ok: false, error: 'סוג לא מוכר: ' + kind };
+  if (!data) return { ok: false, error: 'לא התקבלו נתונים.' };
+
+  var sh = mSheet(def.sheet, def.cols);
+  var m = mMap(sh);
+  var id = String(blank(data[def.idCol])).trim();
+  var at = id ? mFindRowBy(sh, def.idCol, id) : null;
+  var h;
+
+  if (!at) {
+    if (!id) id = mNextId(def.prefix, def.sheet, def.idCol);
+    data[def.idCol] = id;
+    for (h in def.defs) if (!String(blank(data[h])).trim()) data[h] = def.defs[h];
+    if (kind === 'pot') data['נוצר בתאריך'] = mToday();
+    if (kind === 'tsk' && !String(blank(data['תאריך פתיחה'])).trim()) data['תאריך פתיחה'] = mToday();
+    data['עודכן בתאריך'] = mToday();
+    if (m['סיבת שינוי אחרונה'] !== undefined) data['סיבת שינוי אחרונה'] = blank(reason);
+
+    var row = sh.getLastRow() + 1;
+    mTextCols(sh, def.dates, row);
+    sh.getRange(row, 1, 1, sh.getLastColumn()).setValues([mRow(sh, data)]);
+    mLog(who, id, 'הוספה', '—', '', data[def.nameCol] || '(ללא שם)', reason || 'חדש');
+    return { ok: true, kind: kind, row: mOne(sh, row) };
+  }
+
+  var cur = sh.getRange(at, 1, 1, sh.getLastColumn()).getValues()[0];
+  var logs = [];
+  for (h in m) {
+    if (data[h] === undefined || CHG_SKIP[h] || h === def.idCol || h === 'נוצר בתאריך') continue;
+    var was = mCell(cur[m[h]]);
+    var now = String(blank(data[h]));
+    if (was === now) { delete data[h]; continue; }
+    logs.push({ who: who, id: id, action: 'עדכון', field: h, oldV: was, newV: now, reason: reason });
+  }
+  if (!logs.length) return { ok: true, kind: kind, row: mOne(sh, at), unchanged: true };
+  mLogMany(logs);
+
+  data['עודכן בתאריך'] = mToday();
+  if (m['סיבת שינוי אחרונה'] !== undefined) data['סיבת שינוי אחרונה'] = blank(reason);
+  mTextCols(sh, def.dates, at);
+  for (h in m) {
+    if (data[h] === undefined || h === def.idCol || h === 'נוצר בתאריך') continue;
+    sh.getRange(at, m[h] + 1).setValue(blank(data[h]));
+  }
+  return { ok: true, kind: kind, row: mOne(sh, at) };
+}
+
+/** עמודות התאריך של שורה נתונה כטקסט — לפני הכתיבה, כדי שהערך יישמר כפי שנשלח */
+function mTextCols(sh, cols, row) {
+  var m = mMap(sh);
+  (cols || []).forEach(function (h) {
+    if (m[h] !== undefined) sh.getRange(row, m[h] + 1).setNumberFormat('@');
+  });
+}
+
+function mFindRowBy(sh, col, id) {
+  if (sh.getLastRow() < 2) return null;
+  var m = mMap(sh);
+  if (m[col] === undefined) return null;
+  var ids = sh.getRange(2, m[col] + 1, sh.getLastRow() - 1, 1).getValues();
+  for (var i = 0; i < ids.length; i++) {
+    if (String(ids[i][0]).trim() === String(id).trim()) return i + 2;
+  }
+  return null;
 }
 
 /* ---------- משיכת ההערות מהסדנה ---------- */
@@ -677,6 +812,8 @@ function mDiag() {
   Logger.log('מדדים: ' + mRead(mSheet(M.IND, IND_COLS)).length);
   Logger.log('הערות: ' + mRead(mSheet(M.CMT, CMT_COLS)).length);
   Logger.log('שורות יומן: ' + mRead(mSheet(M.CHG, CHG_COLS)).length);
+  Logger.log('מדדים פוטנציאליים: ' + mRead(mSheet(M.POT, POT_COLS)).length);
+  Logger.log('משימות: ' + mRead(mSheet(M.TSK, TSK_COLS)).length);
   Logger.log('סיסמת ניהול מוגדרת: ' +
     (PropertiesService.getScriptProperties().getProperty('ADMIN_PASS') ? 'כן' : 'לא'));
   return 'ok';
