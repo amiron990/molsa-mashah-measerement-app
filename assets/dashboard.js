@@ -2440,6 +2440,11 @@
         try { cfg = JSON.parse(js); } catch (e2) { /* not a settings object */ }
       }
     }
+    return readConfig(cfg);
+  }
+
+  // Settings already read: checked against the data, and the state they make.
+  function readConfig(cfg) {
     if (!cfg || typeof cfg !== 'object' || !Array.isArray(cfg.levels)) {
       return { error: 'לא זוהו הגדרות חלוקה. צריך אובייקט עם רשימת levels, כמו זה שמעתיקה "העתקת הגדרות".' };
     }
@@ -2493,6 +2498,249 @@
     dlg.addEventListener('dragover', e => { e.preventDefault(); dlg.classList.add('drop'); });
     dlg.addEventListener('dragleave', e => { if (!dlg.contains(e.relatedTarget)) dlg.classList.remove('drop'); });
     dlg.addEventListener('drop', e => { e.preventDefault(); dlg.classList.remove('drop'); readFile(e.dataTransfer.files[0]); });
+  }
+
+  // ---------- saved divisions ----------
+  // One shared list of named divisions. Anyone can search it and load from it; saving and
+  // deleting need the management login.
+
+  // The management page's login, kept for the browser tab: a login on either page counts on both.
+  const LOGIN_KEY = 'kyd_molsa_admin_v1';
+  function login() {
+    try {
+      const a = JSON.parse(sessionStorage.getItem(LOGIN_KEY));
+      return a && a.pass ? { who: a.who || '', pass: a.pass } : null;
+    } catch (e) { return null; }
+  }
+
+  // A division's name is its file name in storage, so it keeps to the storage's rules.
+  function nameProblem(name) {
+    if (!name) return 'צריך לתת לחלוקה שם.';
+    if (/[\/#?[\]*\r\n]/.test(name)) return 'השם לא יכול לכלול את התווים / # ? [ ] * או מעבר שורה.';
+    if (new TextEncoder().encode(name).length > 1024) return 'השם ארוך מדי.';
+    return '';
+  }
+
+  // The only part that talks to storage. list(): every division without its settings;
+  // get(name): one whole division; save(entry, overwrite, cred) and remove(name, cred) change the
+  // list, and a name already taken fails with code 'exists' unless overwrite is set.
+  // For now a stand-in kept in memory, gone on reload: Apps Script and the bucket take its place.
+  const store = (() => {
+    const kept = new Map(); // name -> division
+    const answer = v => new Promise(res => setTimeout(() => res(structuredClone(v)), 250)); // as a server would
+    const refuse = (code, message) => new Promise((res, rej) =>
+      setTimeout(() => rej(Object.assign(new Error(message), { code })), 250));
+    const summary = ({ config, ...rest }) => rest;
+    return {
+      list: () => answer([...kept.values()].map(summary)),
+      get: name => (kept.has(name) ? answer(kept.get(name)) : refuse('missing', 'החלוקה הזאת כבר לא ברשימה.')),
+      // The stand-in takes any login; the server checks the password here, on every save and delete.
+      save(entry, overwrite, cred) {
+        if (!cred) return refuse('login', 'צריך להיכנס כדי לשמור.');
+        const bad = nameProblem(entry.name);
+        if (bad) return refuse('name', bad);
+        if (kept.has(entry.name) && !overwrite) return refuse('exists', 'כבר יש חלוקה בשם הזה.');
+        const full = { ...entry, savedBy: cred.who, savedAt: new Date().toISOString() };
+        kept.set(entry.name, structuredClone(full));
+        return answer(summary(full));
+      },
+      remove(name, cred) {
+        if (!cred) return refuse('login', 'צריך להיכנס כדי למחוק.');
+        if (!kept.delete(name)) return refuse('missing', 'החלוקה הזאת כבר לא ברשימה.');
+        return answer(true);
+      },
+    };
+  })();
+
+  // The list as read at load, kept up to date after each change made here; other people's
+  // changes show after a reload.
+  let saved = null, savedLoad = null;
+  const loadSaved = () => (savedLoad ||= store.list().then(l => { saved = l; return l; },
+    err => { savedLoad = null; throw err; }));
+
+  // A division: its settings, and its columns' names as they are today, so it can still be
+  // found by them after a column leaves the data.
+  function currentDivision(name) {
+    const config = exportConfig(state, lastTree), columns = config.levels.map(l => l.column);
+    return { name, columns, labels: Object.fromEntries(columns.map(k => [k, COL[k].label])), config };
+  }
+  const labelsOf = s => s.columns.map(k => COL[k]?.label || s.labels?.[k] || k);
+  const goneOf = s => s.columns.filter(k => !COL[k]).map(k => s.labels?.[k] || k);
+
+  // What no longer fits today's data: a column that is gone, a threshold outside the column's
+  // values, a category that is not there.
+  function staleIssues(entry) {
+    const out = [];
+    for (const lv of entry.config.levels || []) {
+      const col = COL[lv.column];
+      if (!col) { out.push(`העמודה "${entry.labels?.[lv.column] || lv.column}" כבר לא קיימת בנתונים`); continue; }
+      const lists = [isCatCol(col) ? lv.groups : lv.thresholds, ...Object.values(lv.branches || {})];
+      if (isCatCol(col)) {
+        const known = new Set(col.cats.flatMap((c, ci) => [String(c), catName(col, ci), col.values?.[String(c)]]));
+        const gone = [...new Set(lists.flat(2).filter(x => x != null && !known.has(String(x))))];
+        if (gone.length) out.push(`ב"${col.short}": קטגוריות שכבר לא קיימות: ${gone.join(', ')}`);
+      } else {
+        const off = [...new Set(lists.flat().filter(t => Number.isFinite(t) && (t < col.min || t > col.max)))];
+        if (off.length) out.push(`ב"${col.short}": ספים מחוץ לטווח הערכים של היום (${fmt(col.min, col)} עד ${fmt(col.max, col)}): ${off.map(t => fmt(t, col)).join(', ')}`);
+      }
+    }
+    return out;
+  }
+
+  // Runs `then` with the login, asking for one first when this tab has none.
+  let afterLogin = null;
+  function withLogin(then) {
+    const cred = login();
+    if (cred) { then(cred); return; }
+    afterLogin = then;
+    $('#login-error').hidden = true;
+    $('#login-pass').value = '';
+    $('#login-dlg').showModal();
+    $('#login-name').focus();
+  }
+  function renderLogin() {
+    const cred = login();
+    $('#navUser').innerHTML = cred ? `<span class="nm">${esc(cred.who)}</span><button type="button" id="outBtn">יציאה</button>` : '';
+    $('#outBtn')?.addEventListener('click', () => {
+      try { sessionStorage.removeItem(LOGIN_KEY); } catch (e) { /* storage blocked */ }
+      renderLogin();
+      toast('היציאה בוצעה');
+    });
+  }
+  const showError = (sel, msg) => { $(sel).textContent = msg; $(sel).hidden = false; };
+
+  function setSaveExists(on) {
+    $('#save-exists').hidden = !on;
+    $('#save-go').textContent = on ? 'החלפה' : 'שמירה';
+  }
+  function openSave() {
+    $('#save-name').value = '';
+    $('#save-error').hidden = true;
+    setSaveExists(false);
+    $('#save-what').textContent = lastTree.act.length ? lastTree.act.map(A => A.col.short).join(' · ') : 'אין שלבים';
+    $('#save-dlg').showModal();
+    $('#save-name').focus();
+    loadSaved().catch(() => { /* the server checks the name again on save */ });
+  }
+
+  function openList() {
+    $('#list-q').value = '';
+    $('#list-dlg').showModal();
+    $('#list-q').focus();
+    renderList();
+    if (!saved) loadSaved().then(renderList, err => { $('#list-state').textContent = 'לא הצלחנו לקרוא את רשימת החלוקות: ' + err.message; });
+  }
+  function renderList() {
+    const host = $('#list-items'), note = $('#list-state');
+    if (!saved) { host.innerHTML = ''; note.textContent = 'טוען את רשימת החלוקות…'; return; }
+    const q = $('#list-q').value.trim().toLowerCase();
+    const all = [...saved].sort((a, b) => String(b.savedAt).localeCompare(String(a.savedAt))); // newest first
+    $('#list-sugg').innerHTML = [...new Set(all.flatMap(s => [s.name, ...labelsOf(s)]))]
+      .map(x => `<option value="${esc(x)}"></option>`).join('');
+    const shown = all.filter(s => !q || [s.name, ...labelsOf(s)].some(x => x.toLowerCase().includes(q)));
+    note.textContent = !all.length ? 'עוד לא נשמרו חלוקות. אפשר לשמור את החלוקה הנוכחית מתפריט הפעולות (⋯).'
+      : !shown.length ? 'אין חלוקות שמתאימות לחיפוש.' : '';
+    const when = iso => (iso ? new Date(iso).toLocaleDateString('he-IL') : '');
+    host.innerHTML = shown.map(s => {
+      const gone = goneOf(s);
+      return `<li class="dv-row" data-name="${esc(s.name)}">` +
+        `<div class="dv-main"><b class="dv-name">${esc(s.name)}</b>` +
+        `<span class="dv-params">${esc(labelsOf(s).join(' · ') || 'אין שלבים')}</span>` +
+        `<span class="dv-meta">${esc([s.savedBy, when(s.savedAt)].filter(Boolean).join(' · '))}</span>` +
+        (gone.length ? `<span class="dv-warn"><span class="ico">⚠</span>עמודות שכבר לא קיימות בנתונים: ${esc(gone.join(', '))}</span>` : '') +
+        '</div><div class="dv-actions">' +
+        '<button type="button" class="btn-ghost" data-act="load">טעינה</button>' +
+        '<button type="button" class="btn-ghost dv-del" data-act="del">מחיקה</button></div>' +
+        '<div class="dv-confirm" hidden>למחוק את החלוקה?' +
+        '<button type="button" class="btn-ghost dv-del" data-act="del-yes">מחיקה</button>' +
+        '<button type="button" class="btn-ghost" data-act="del-no">ביטול</button></div></li>';
+    }).join('');
+  }
+
+  function loadDivision(name, btn) {
+    btn.disabled = true;
+    store.get(name).then(entry => {
+      const r = readConfig(entry.config), issues = staleIssues(entry);
+      if (r.error) { showStale(issues.length ? issues : [r.error], 'none'); return; }
+      $('#list-dlg').close();
+      loadState(r.st);
+      if (issues.length) showStale(issues, goneOf(entry).length ? 'some' : 'all');
+      else toast([`נטענה החלוקה "${name}"`, ...r.notes].join('. '));
+    }, err => {
+      if (err.code === 'missing') { saved = saved.filter(s => s.name !== name); renderList(); }
+      toast(err.message);
+    }).finally(() => { btn.disabled = false; });
+  }
+  // loaded: 'all' of it as saved, 'some' (stages of columns that are gone are left out) or 'none'.
+  function showStale(issues, loaded) {
+    $('#stale-list').innerHTML = issues.map(x => `<li>${esc(x)}</li>`).join('');
+    $('#stale-after').textContent = {
+      all: 'החלוקה נטענה כמו שנשמרה.',
+      some: 'החלוקה נטענה בלי השלבים שעמודותיהם כבר לא קיימות. שאר השלבים נטענו כמו שנשמרו.',
+      none: 'אף שלב של החלוקה לא מתאים לנתונים של היום, ולכן היא לא נטענה.',
+    }[loaded];
+    $('#stale-dlg').showModal();
+  }
+
+  function wireSaved() {
+    document.querySelectorAll('dialog [data-close]').forEach(b => b.addEventListener('click', () => b.closest('dialog').close()));
+    renderLogin();
+    loadSaved().catch(() => { /* the list dialog says so when it opens */ });
+
+    $('#login-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const who = $('#login-name').value.trim(), pass = $('#login-pass').value;
+      if (!who || !pass) { showError('#login-error', 'צריך למלא שם וסיסמה.'); return; }
+      try { sessionStorage.setItem(LOGIN_KEY, JSON.stringify({ who, pass })); } catch (err) { /* storage blocked */ }
+      const then = afterLogin;
+      afterLogin = null;
+      $('#login-dlg').close();
+      renderLogin();
+      then?.({ who, pass });
+    });
+    $('#login-dlg').addEventListener('close', () => { afterLogin = null; }); // closed without logging in
+
+    $('#save-name').addEventListener('input', () => { $('#save-error').hidden = true; setSaveExists(false); });
+    $('#save-form').addEventListener('submit', e => {
+      e.preventDefault();
+      const name = $('#save-name').value.trim(), bad = nameProblem(name);
+      if (bad) { showError('#save-error', bad); return; }
+      const overwrite = !$('#save-exists').hidden;
+      if (!overwrite && saved?.some(s => s.name === name)) { setSaveExists(true); return; }
+      withLogin(cred => {
+        const go = $('#save-go');
+        go.disabled = true;
+        store.save(currentDivision(name), overwrite, cred).then(sum => {
+          saved = [...(saved || []).filter(s => s.name !== name), sum];
+          $('#save-dlg').close();
+          toast(overwrite ? `החלוקה "${name}" הוחלפה` : `החלוקה "${name}" נשמרה`);
+        }, err => {
+          if (err.code === 'exists') setSaveExists(true); // saved by someone else since the list was read
+          else showError('#save-error', err.message);
+        }).finally(() => { go.disabled = false; });
+      });
+    });
+
+    $('#list-q').addEventListener('input', renderList);
+    $('#list-items').addEventListener('click', e => {
+      const b = e.target.closest('button[data-act]');
+      if (!b) return;
+      const row = b.closest('.dv-row'), name = row.dataset.name, act = b.dataset.act;
+      if (act === 'load') loadDivision(name, b);
+      else if (act === 'del' || act === 'del-no') {
+        row.querySelector('.dv-confirm').hidden = act === 'del-no';
+        row.querySelector('.dv-actions').hidden = act === 'del';
+      } else if (act === 'del-yes') {
+        withLogin(cred => {
+          b.disabled = true;
+          const gone = () => { saved = saved.filter(s => s.name !== name); renderList(); toast(`החלוקה "${name}" נמחקה`); };
+          store.remove(name, cred).then(gone, err => {
+            if (err.code === 'missing') gone();
+            else { toast(err.message); b.disabled = false; }
+          });
+        });
+      }
+    });
   }
 
   // Local page only: the shared page cannot download files.
@@ -2586,6 +2834,9 @@
       $('#btn-save').hidden = true;
     }
     wireImport();
+    $('#btn-div-save').addEventListener('click', () => { setMenu(false); openSave(); });
+    $('#btn-div-list').addEventListener('click', () => { setMenu(false); openList(); });
+    wireSaved();
 
     $('#min-size').addEventListener('input', e => {
       const v = Math.round(Number(e.target.value));
