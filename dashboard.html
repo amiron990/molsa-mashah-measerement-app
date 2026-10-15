@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>מצפן רשויות מקומיות — קבוצות דומים</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/app.css?v=20260929-4">
+<style>
+  /* ===== עץ קבוצות דומים — מה שאין במערכת העיצוב המשותפת ===================== */
+  /* Layout: stage controls in a sticky side column; the tree reads right to left, from all
+     authorities through the three stages to the groups, which are the tree's leaves. */
+  :root {
+    color-scheme: light;
+    /* the site's tokens (assets/app.css), under the names this page's rules use */
+    --page: var(--n1);
+    --surface: #fff;
+    --surface-2: #F1F1F1;
+    --text: var(--n5);
+    --text-2: var(--n4);
+    --muted: var(--n3);
+    --grid: var(--n2);
+    --axis: rgba(15, 23, 42, 0.24);
+    --link: var(--line-strong);
+    --border: var(--line);
+    --accent: var(--blue);
+    --accent-ink: #0B5F8F; /* the site's blue, darker: text on --accent-soft needs the contrast */
+    --accent-soft: var(--heat-1);
+    --critical: var(--bad-ink);
+    --critical-soft: rgba(242, 66, 102, 0.09);
+    --shadow: none; /* the site separates with lines, not shadows */
+    --sea: var(--bg-1);
+    --land: #fff;
+    --coast: var(--bg-4);
+    --sea-ink: var(--teal);
+    --head-h: 60px;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--page);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 1.4;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font: inherit; color: inherit; }
+  [hidden] { display: none !important; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- top bar ---------- */
+  .topbar {
+    position: sticky; top: var(--nav-h); z-index: 20;
+    display: flex; align-items: center; gap: 10px 16px; flex-wrap: wrap;
+    padding: 11px 24px;
+    background: color-mix(in srgb, var(--page) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar h1 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+  .actions { margin-inline-start: auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  /* the site's controls (app.css) at one height, so the toolbar lines up */
+  .topbar .btn-ghost, .topbar .btn-primary { height: 38px; padding-block: 0; white-space: nowrap; }
+  .topbar .search { flex: none; width: 240px; } /* a set width: the toolbar sizes itself from it */
+  .topbar .search input { height: 38px; }
+  .btn-primary:disabled { background: transparent; border: 1px solid var(--line-strong); color: var(--n4); font-weight: 500; cursor: default; }
+  .btn-icon { width: 38px; padding: 0; font-size: 18px; line-height: 1; }
+  .search-n { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  /* the minimum: a number in a box, like the site's inputs */
+  .min-field {
+    display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px;
+    border: 1px solid var(--line-strong); border-radius: 8px; background: #fff;
+    font-size: 13px; color: var(--n4);
+  }
+  .min-field input { width: 40px; border: 0; background: transparent; outline: none; font: 700 13px var(--mono); color: var(--n5); }
+  .min-field:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(6, 136, 202, 0.12); }
+  /* the search over every stage, with a warning joined to it when the minimum cannot be met */
+  .opt-all { display: flex; align-items: stretch; }
+  #btn-opt-all:disabled { color: var(--text-2); cursor: default; }
+  #btn-opt-all:disabled:hover { border-color: var(--line-strong); color: var(--text-2); }
+  #btn-opt-all .v { direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; color: var(--accent-ink); font-weight: 600; }
+  .opt-all.warned #btn-opt-all { border-start-end-radius: 0; border-end-end-radius: 0; }
+  .opt-warn {
+    display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 0 12px;
+    border: 1px solid var(--line-strong); border-inline-start: 0; border-start-end-radius: 8px; border-end-end-radius: 8px;
+    background: var(--critical-soft); color: var(--text); font-size: 12.5px; white-space: nowrap;
+  }
+  .opt-warn .ico { color: var(--critical); margin-inline-end: 4px; }
+  .ow-hint { font-weight: 600; }
+  .ow-fix { padding: 0; border: 0; background: none; color: var(--accent-ink); font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; }
+  .opt-all .v, .opt-warn { transition: opacity 0.15s; }
+  .opt-all.stale .v, .opt-all.stale .opt-warn { opacity: 0.45; }
+  @media (max-width: 640px) {
+    .opt-all { flex-direction: column; gap: 4px; width: 100%; }
+    .opt-all.warned #btn-opt-all { border-radius: 8px; }
+    .opt-warn { border-inline-start: 1px solid var(--line-strong); border-radius: 8px; white-space: normal; flex-wrap: wrap; gap: 2px 10px; padding-block: 6px; }
+  }
+  .menu { position: relative; }
+  .menu-pop {
+    position: absolute; top: calc(100% + 6px); left: 0; z-index: 30; min-width: 170px;
+    display: flex; flex-direction: column; padding: 6px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.14);
+  }
+  .menu-pop button { border: 0; background: transparent; text-align: start; padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+  .menu-pop button:hover { background: var(--surface-2); }
+
+  /* ---------- layout ----------
+     Wide screens: the window itself never scrolls. The stage column and the tree each
+     scroll on their own, and a scroll that reaches the end stops there. Narrow screens
+     stack everything and scroll the page. */
+  .layout {
+    display: grid; grid-template-columns: minmax(330px, 390px) minmax(0, 1fr);
+    gap: 20px; align-items: start;
+    max-width: 1720px; margin: 0 auto; padding: 20px 24px 40px;
+  }
+  .params { position: relative; display: flex; flex-direction: column; gap: 10px; } /* positioned: cards measure their place in it */
+  @media (min-width: 1041px) {
+    html, body { height: 100%; overflow: hidden; }
+    body { display: flex; flex-direction: column; }
+    .nav, .topbar { flex: none; }
+    .topbar { position: relative; top: 0; }
+    .layout { flex: 1; min-height: 0; width: 100%; grid-template-rows: minmax(0, 1fr); align-items: stretch; padding-block: 16px; }
+    .params, .layout > main { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+    .params { padding-inline-end: 4px; }
+    .layout > main { padding-inline-end: 4px; }
+  }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); }
+
+  /* ---------- R² chip ---------- */
+  .r2 {
+    display: inline-flex; align-items: baseline; gap: 3px; padding: 1px 8px; border-radius: 999px;
+    background: var(--accent-soft); color: var(--accent-ink);
+    font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: help;
+  }
+  .r2 .v { direction: ltr; unicode-bidi: isolate; }
+
+  /* ---------- stage cards: one open at a time, the others fold to a summary. Top to bottom
+     they are the tree's stages; a grip drags a card to a new place. ---------- */
+  .stage { position: relative; transition: box-shadow 0.2s; }
+  .stage-head { display: flex; align-items: flex-start; }
+  .grip {
+    flex: none; align-self: stretch; width: 26px; margin-inline-start: 4px; padding: 0;
+    display: grid; place-items: center; border: 0; border-radius: 10px; background: transparent;
+    color: var(--muted); opacity: 0.6; cursor: grab; touch-action: none;
+  }
+  .stage:hover .grip, .grip:focus-visible { opacity: 1; }
+  .grip:hover { color: var(--text); background: var(--surface-2); }
+  .stage.dragging { z-index: 5; cursor: grabbing; box-shadow: 0 0 0 2px var(--accent), 0 14px 34px rgba(0, 0, 0, 0.18); }
+  .stage.dragging .grip { cursor: grabbing; opacity: 1; color: var(--accent-ink); }
+  .stage.settling { z-index: 4; }
+  html.stage-drag, html.stage-drag * { cursor: grabbing !important; user-select: none; -webkit-user-select: none; }
+  .stage-toggle {
+    width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 2px 10px;
+    padding: 12px 14px; padding-inline-start: 4px; border: 0; background: transparent; border-radius: 14px; text-align: start; cursor: pointer;
+  }
+  .stage-toggle:hover > span:first-child { color: var(--accent-ink); }
+  .stage-title { flex: 1; min-width: 0; margin: 0; font-size: 15px; font-weight: 700; }
+  /* the optional stage: a dashed card, marked as optional, with a button to take it away */
+  .stage.extra { border: 1.5px dashed var(--axis); box-shadow: none; }
+  .opt-chip {
+    display: inline-block; margin-inline-start: 8px; padding: 1px 8px; border-radius: 999px; vertical-align: 2px;
+    background: var(--surface-2); color: var(--text-2); font-size: 11px; font-weight: 600;
+  }
+  .stage-x {
+    flex: none; width: 28px; height: 28px; margin: 9px 0; margin-inline-end: 8px; padding: 0;
+    border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 14px; line-height: 1; cursor: pointer;
+  }
+  .stage-x:hover { background: var(--surface-2); color: var(--text); }
+  .stage-add {
+    display: flex; align-items: center; gap: 12px; width: 100%; padding: 13px 14px;
+    border: 1.5px dashed var(--axis); border-radius: 14px; background: transparent;
+    text-align: start; color: var(--text-2); cursor: pointer; transition: border-color 0.15s, background 0.15s;
+  }
+  .stage-add:hover { border-color: var(--accent); background: var(--accent-soft); }
+  .sa-plus {
+    flex: none; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%;
+    border: 1.5px dashed var(--accent); color: var(--accent-ink); font-size: 19px; line-height: 1;
+  }
+  .sa-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .sa-text b { font-size: 15px; color: var(--text); }
+  .sa-text span { font-size: 12.5px; }
+  .stage.is-empty .stage-title { color: var(--text-2); }
+  .stage-sum { grid-column: 1 / -1; font-size: 12.5px; font-weight: 400; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stage.open .stage-sum { display: none; }
+  .chev { width: 20px; height: 20px; display: grid; place-items: center; color: var(--muted); transition: transform 0.2s; }
+  .stage.open .chev { transform: rotate(180deg); }
+  .stage-body { padding: 0 14px 12px; }
+  .stage:not(.open) .stage-body { display: none; }
+  .stage-pick { display: flex; align-items: center; gap: 6px; }
+  .stage-pick .fsel { flex: 1; min-width: 0; max-width: none; text-overflow: ellipsis; } /* fills the card's row */
+  .stage.is-empty .fsel { color: var(--text-2); }
+  .info-btn {
+    flex: none; width: 28px; height: 28px; border-radius: 50%; border: 0;
+    background: transparent; color: var(--muted); cursor: help; font-size: 15px;
+  }
+  .info-btn:hover { background: var(--surface-2); color: var(--text); }
+  .stage-ctrl { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin-top: 10px; }
+  .stage-ctrl .grow { flex: 1; }
+  .add-btn {
+    height: 26px; padding: 0 10px; border-radius: 7px; cursor: pointer;
+    border: 1px dashed var(--axis); background: transparent; color: var(--accent-ink); font-weight: 600; font-size: 12.5px;
+  }
+  .add-btn:hover { background: var(--accent-soft); border-color: transparent; }
+  .add-btn:disabled { opacity: 0.4; cursor: default; background: transparent; }
+
+  /* threshold search: the stage's best thresholds, and what one change of shape would add */
+  .opt { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--grid); transition: opacity 0.15s; }
+  .opt.stale { opacity: 0.45; }
+  .opt .v { direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
+  .opt-btn {
+    height: 28px; padding: 0 11px; border-radius: 8px; border: 1px solid transparent; cursor: pointer;
+    background: var(--accent-soft); color: var(--accent-ink); font-size: 12.5px; font-weight: 600;
+  }
+  .opt-btn:hover { border-color: var(--accent); }
+  .opt-btn:disabled { background: transparent; color: var(--text-2); font-weight: 500; cursor: default; border-color: transparent; padding-inline: 2px; }
+  .opt-note { flex-basis: 100%; margin: 0; padding: 5px 9px; border-radius: 8px; background: var(--critical-soft); color: var(--text); font-size: 12px; }
+  .opt-note .ico { color: var(--critical); margin-inline-end: 4px; }
+
+  .srow { position: relative; margin-top: 6px; padding: 0 10px; }
+  .srow.branch { margin-top: 8px; padding: 8px 10px 2px; border: 1px solid var(--border); border-radius: 12px; transition: box-shadow 0.2s, opacity 0.2s; }
+  .srow.branch.linked { box-shadow: 0 0 0 2px var(--accent); }
+  .srow.branch.void { opacity: 0.5; }
+  .srow-head { display: flex; align-items: center; gap: 6px; margin: 0 -2px 2px; font-size: 12px; }
+  .srow-head .code { font-weight: 700; font-variant-numeric: tabular-nums; }
+  .srow-head .path { flex: 1; min-width: 0; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .srow-head .cnt { color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .srow-head .add-btn { height: 22px; width: 24px; padding: 0; font-size: 15px; line-height: 1; }
+  /* groups of a category column: chips moved between group boxes */
+  .srow.board { padding-bottom: 8px; }
+  .cb-hint { margin: 2px 0 6px; font-size: 11.5px; color: var(--muted); }
+  .cgroups { display: flex; flex-direction: column; gap: 6px; }
+  .cgroup {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-height: 40px; padding: 6px 8px;
+    border: 1px solid var(--border); border-inline-start: 4px solid var(--gc, var(--axis)); border-radius: 10px;
+    background: var(--surface); transition: border-color 0.15s, background 0.15s;
+  }
+  .cg-head { flex: none; display: flex; align-items: baseline; gap: 5px; min-width: 70px; font-size: 12px; font-weight: 600; color: var(--text-2); }
+  .cg-head .n, .cchip .n { font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .cg-head.small .n { color: var(--critical); font-weight: 600; }
+  .cchip {
+    display: inline-flex; align-items: baseline; gap: 5px; height: 26px; padding: 0 10px; border-radius: 999px;
+    border: 1px solid var(--axis); background: var(--surface-2); color: var(--text); font-size: 12.5px; cursor: grab;
+  }
+  .cchip .n { font-size: 11px; }
+  .cchip:hover { border-color: var(--accent); }
+  .cchip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .cchip.dragging { opacity: 0.4; }
+  .cgroups.picking .cgroup:not(.new), .cgroups.picking .cgroup.new:not([aria-disabled="true"]) { cursor: pointer; }
+  .cgroups.picking .cgroup[role="button"] { outline: 1.5px dashed var(--accent); outline-offset: -4px; }
+  .cgroups.picking .cgroup[role="button"]:hover, .cgroup.over { border-color: var(--accent); background: var(--accent-soft); }
+  .cgroup.new {
+    justify-content: center; min-height: 34px; border-style: dashed; border-inline-start-width: 1px;
+    color: var(--text-2); font-size: 12.5px;
+  }
+  .cgroup.new[aria-disabled="true"] { opacity: 0.5; }
+  .dots { display: block; width: 100%; overflow: visible; }
+  .dots circle { stroke: var(--surface); stroke-width: 1; }
+  .dots circle.hit { stroke: var(--text); stroke-width: 2; }
+  .track { position: relative; height: 24px; }
+  .track::before {
+    content: ""; position: absolute; left: 0; right: 0; top: 50%;
+    height: 6px; margin-top: -3px; border-radius: 3px; background: var(--grid);
+  }
+  .tseg {
+    position: absolute; top: 50%; height: 6px; margin-top: -3px; border-radius: 3px;
+    border-left: 1px solid var(--surface); border-right: 1px solid var(--surface);
+  }
+  .handle {
+    position: absolute; top: 50%; width: 18px; height: 18px; margin: -9px 0 0 -9px;
+    border-radius: 50%; background: var(--surface); border: 2px solid var(--text);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25); cursor: grab; touch-action: none;
+    transition: transform 0.1s ease-out;
+  }
+  .handle:hover { transform: scale(1.12); }
+  .handle:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .handle.dragging { cursor: grabbing; transform: scale(1.2); }
+  .bubbles { position: relative; height: 26px; }
+  .bubbles.two-rows { height: 50px; }
+  .bubble {
+    position: absolute; top: 1px; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 1px; padding: 1px 2px; border-radius: 7px;
+    background: var(--text); color: var(--surface);
+    font-size: 12px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums;
+  }
+  .bubble.row1 { top: 26px; }
+  .b-val { border: 0; background: transparent; color: inherit; padding: 2px 5px; cursor: text; border-radius: 5px; font-weight: 600; }
+  .b-val:hover { background: rgba(127, 127, 127, 0.25); }
+  .b-del { border: 0; background: transparent; color: inherit; width: 18px; height: 18px; padding: 0; border-radius: 5px; cursor: pointer; opacity: 0.65; line-height: 1; }
+  .b-del:hover { opacity: 1; background: rgba(127, 127, 127, 0.3); }
+  .b-input { width: 76px; border: 0; border-radius: 5px; padding: 2px 5px; font: inherit; color: var(--text); background: var(--surface); outline: none; }
+  .axis { position: relative; display: flex; justify-content: space-between; height: 16px; font-size: 11px; color: var(--muted); }
+  .axis:empty { display: none; }
+  .axis.cats { height: auto; min-height: 16px; justify-content: stretch; }
+  .axis .cat { flex: 1 1 0; min-width: 0; padding: 0 1px; text-align: center; line-height: 1.25; overflow-wrap: anywhere; }
+
+  /* ---------- tree ---------- */
+  .tree-panel { padding: 14px 18px 18px; }
+  .panel-head { display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; }
+  .panel-head h2 { margin: 0; font-size: 16px; font-weight: 700; }
+  .stats { display: flex; gap: 8px; flex-wrap: wrap; margin-inline-start: auto; }
+  .stat { display: flex; align-items: baseline; gap: 5px; padding: 4px 10px; border-radius: 10px; background: var(--surface-2); font-size: 12.5px; color: var(--text-2); }
+  .stat b { font-size: 15px; color: var(--text); font-variant-numeric: tabular-nums; }
+  .stat.bad { background: var(--critical-soft); }
+  .stat.score { background: var(--accent-soft); color: var(--accent-ink); align-items: center; }
+  .help-btn {
+    flex: none; width: 18px; height: 18px; padding: 0; border-radius: 50%; border: 1px solid currentColor;
+    background: transparent; color: inherit; font-size: 11px; font-weight: 700; line-height: 1; cursor: help; opacity: 0.8;
+  }
+  .help-btn:hover, .help-btn:focus-visible { opacity: 1; }
+  .stat.score b { color: var(--accent-ink); }
+  .ico { color: var(--critical); font-weight: 700; }
+
+  /* Top to bottom: all authorities, one row per stage, the groups as leaves. The stage names
+     sit in a column at the side; a wide tree scrolls sideways under them. */
+  #tree { position: relative; margin-top: 12px; }
+  .tree-scroll { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; padding-bottom: 4px; }
+  .vtree {
+    --lab: 118px; /* the stage names */
+    position: relative;
+    display: grid; align-items: center;
+    grid-template-columns: var(--lab) repeat(var(--leaves), minmax(52px, 1fr));
+    column-gap: 6px; row-gap: 34px; min-width: min-content;
+  }
+  .links { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+  .links path { fill: none; stroke: var(--link); transition: opacity 0.15s, stroke 0.15s; }
+  .links path.onpath { stroke: color-mix(in srgb, var(--accent) 55%, var(--link)); }
+  .vt-label {
+    position: sticky; inset-inline-start: 0; z-index: 3; align-self: stretch; min-width: 0;
+    display: flex; flex-direction: column; justify-content: center; gap: 2px;
+    padding-inline-end: 10px; border-inline-end: 1px solid var(--grid); background: var(--surface);
+    font-size: 12px; color: var(--text-2); cursor: pointer;
+  }
+  .vt-label:hover .vt-theme { color: var(--accent-ink); }
+  .vt-theme { font-size: 12.5px; font-weight: 700; color: var(--text); line-height: 1.25; }
+  .vt-col { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; line-height: 1.3; }
+  .vt-label .r2 { align-self: flex-start; margin-top: 2px; }
+  .tn {
+    position: relative; z-index: 1; min-width: 0; max-width: 100%; justify-self: center;
+    display: flex; flex-direction: column; align-items: center; gap: 1px;
+    padding: 5px 12px; border-radius: 9px; border: 1px solid transparent; background: var(--surface-2);
+    text-align: center; cursor: pointer; transition: opacity 0.15s, box-shadow 0.15s;
+  }
+  .tn:hover { box-shadow: 0 0 0 1.5px var(--accent); }
+  /* a branch sits in a cell as wide as its groups and slides inside it to stay in view while
+     a wide tree scrolls sideways */
+  .tn-cell { display: flex; justify-content: center; min-width: 0; }
+  .tn-cell > .tn { position: sticky; inset-inline: calc(var(--lab) + 6px) 6px; }
+  .tn-lab { font-size: 12px; font-weight: 600; line-height: 1.25; text-wrap: balance; }
+  .tn-n { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .tn.pass .tn-lab { color: var(--muted); font-weight: 400; }
+  .tn-root { padding: 6px 18px; }
+  .tn-root b { font-size: 15px; font-variant-numeric: tabular-nums; }
+  .tn.onpath { background: var(--accent-soft); }
+  .tn.has-hit { box-shadow: 0 0 0 2px var(--accent); }
+  /* a leaf is a group: its top edge carries the group's color on the map */
+  .tn.leaf {
+    align-self: stretch; justify-content: center; width: 100%; max-width: 132px; padding: 5px 4px 6px;
+    background: var(--surface); border-color: var(--border); border-top: 4px solid var(--c);
+  }
+  .leaf-code { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .tn.leaf .tn-lab { font-size: 11.5px; font-weight: 500; color: var(--text-2); }
+  .tn.leaf .tn-n { font-weight: 600; color: var(--text); }
+  .tn.leaf.warn { border-color: color-mix(in srgb, var(--critical) 55%, transparent); border-top-color: var(--c); background: linear-gradient(var(--critical-soft), var(--critical-soft)), var(--surface); }
+  .tn.leaf.warn .tn-n { color: var(--critical); }
+  .tn.leaf.sel { background: var(--accent-soft); box-shadow: 0 0 0 2px var(--accent); }
+
+  #tree.focus .tn:not(.on) { opacity: 0.35; }
+  #tree.focus .links path:not(.on) { opacity: 0.2; }
+  #tree.focus .links path.on { stroke: var(--accent); }
+
+  /* the clicked group, under the tree */
+  .gcard { margin-top: 18px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); scroll-margin: 16px; }
+  .gcard.warn { border-color: color-mix(in srgb, var(--critical) 55%, transparent); }
+  .gc-head { display: flex; align-items: center; gap: 6px 10px; flex-wrap: wrap; }
+  .gc-code { font-size: 13px; font-weight: 700; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .gc-name { flex: 1 1 240px; min-width: 0; margin: 0; font-size: 15px; font-weight: 700; text-wrap: balance; }
+  .gc-count { padding: 2px 9px; border-radius: 999px; background: var(--surface-2); font-size: 12.5px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .gcard.warn .gc-count { background: var(--critical-soft); color: var(--critical); }
+  .gc-actions { display: flex; gap: 6px; }
+  .gc-path { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin-top: 8px; font-size: 12.5px; color: var(--text-2); }
+  .gc-path .t-dim { color: var(--muted); }
+  .gcard .g-members { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--grid); }
+  .gcard-empty { margin: 18px 0 0; padding: 16px; border: 1px dashed var(--axis); border-radius: 12px; text-align: center; font-size: 13px; color: var(--text-2); }
+
+  .g-code { flex: none; font-size: 12.5px; font-weight: 700; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .g-members { display: flex; flex-wrap: wrap; font-size: 12.5px; line-height: 1.7; color: var(--text-2); }
+  .m { position: relative; padding: 0 2px; border-radius: 4px; cursor: default; }
+  .m:not(:last-child) { margin-inline-end: 13px; }
+  .m:not(:last-child)::after { content: "·"; position: absolute; inset-inline-end: -10px; color: var(--muted); }
+  .m.hit { background: var(--accent-soft); color: var(--text); font-weight: 600; }
+
+  /* a group's color, shared by the tree and the map */
+  .g-dot { flex: none; align-self: center; width: 11px; height: 11px; border-radius: 50%; background: var(--c); border: 1px solid var(--c2); }
+
+  /* ---------- map: the map on one side, its groups on the other ---------- */
+  .map-view { container-type: inline-size; margin-top: 10px; }
+  .map-grid {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 340px); gap: 16px;
+    height: max(460px, calc(100dvh - var(--nav-h) - var(--head-h) - 112px));
+  }
+  .map-box { position: relative; min-height: 0; overflow: hidden; border-radius: 12px; border: 1px solid var(--border); background: var(--sea); }
+  .map { display: block; width: 100%; height: 100%; touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab; }
+  .map.dragging { cursor: grabbing; }
+  .map:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .map .land { fill: var(--land); stroke: var(--coast); stroke-width: 1; vector-effect: non-scaling-stroke; }
+  .map .lake { fill: var(--sea); stroke: var(--coast); stroke-width: 1; vector-effect: non-scaling-stroke; }
+  .map circle { stroke-width: 1; transition: opacity 0.15s; }
+  .map circle.dim { opacity: 0.13; }
+  .map circle.none { fill: var(--surface); stroke: var(--muted); }
+  .map circle.hover { stroke: var(--text); stroke-width: 2; }
+  .map circle.hit { stroke: var(--text); stroke-width: 2.5; }
+  .map text {
+    font: 500 11.5px var(--font); direction: rtl;
+    fill: var(--text-2); stroke: var(--land); stroke-width: 3px; stroke-linejoin: round; paint-order: stroke;
+    pointer-events: none;
+  }
+  .map text.on { fill: var(--text); }
+  .map text.anchor { fill: var(--muted); }
+  .map text.hit { fill: var(--text); font-weight: 700; }
+  .map text.sea { fill: var(--sea-ink); stroke: none; font-size: 12px; font-weight: 400; letter-spacing: 0.06em; }
+  .map-ctl { position: absolute; top: 10px; left: 10px; display: flex; flex-direction: column; gap: 4px; }
+  .map-btn {
+    width: 30px; height: 30px; padding: 0; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text);
+    font-size: 17px; line-height: 1; box-shadow: var(--shadow);
+  }
+  .map-btn:hover { background: var(--surface-2); }
+
+  .map-legend { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; display: flex; flex-direction: column; gap: 10px; }
+  .lg-head { display: flex; align-items: baseline; gap: 6px; padding: 0 8px; font-size: 12.5px; color: var(--muted); }
+  .lg-head b { font-size: 13px; color: var(--text); }
+  .lg-clear { margin-inline-start: auto; padding: 0; border: 0; background: none; color: var(--accent-ink); font-size: 12px; font-weight: 600; cursor: pointer; }
+  .lg-fam { display: flex; flex-direction: column; }
+  .lg-fhead, .lg-row {
+    display: flex; align-items: baseline; gap: 8px; width: 100%; padding: 5px 8px;
+    border: 0; border-radius: 8px; background: transparent; text-align: start; cursor: pointer; transition: opacity 0.15s;
+  }
+  .lg-fhead { padding-bottom: 3px; font-size: 12px; font-weight: 600; color: var(--text-2); }
+  .lg-row { font-size: 13px; }
+  .lg-fhead:hover, .lg-row:hover { background: var(--surface-2); }
+  .lg-fhead[aria-pressed="true"], .lg-row[aria-pressed="true"] { background: var(--accent-soft); }
+  .lg-fhead .g-code, .lg-row .g-code { font-size: 12px; }
+  .lg-name { flex: 1; min-width: 0; }
+  .lg-n { flex: none; font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .lg-row.warn .lg-n { color: var(--critical); font-weight: 600; }
+  .map-legend.focus .lg-row:not(.on), .map-legend.focus .lg-fhead:not(.on) { opacity: 0.4; }
+  .lg-note { margin: auto 0 0; padding: 8px 8px 0; border-top: 1px solid var(--grid); font-size: 12px; color: var(--muted); }
+
+  .tree-panel.map-mode .unassigned { display: none; } /* the legend notes them */
+  @container (max-width: 620px) {
+    .map-grid { grid-template-columns: minmax(0, 1fr); height: auto; }
+    .map-box { height: min(62vh, 560px); } /* leaves room to scroll the page past it */
+  }
+
+  .unassigned { margin: 14px 0 0; padding-top: 10px; border-top: 1px solid var(--grid); font-size: 12.5px; color: var(--text-2); }
+  .unassigned b { color: var(--text); font-weight: 600; }
+  .empty-state { padding: 28px; text-align: center; color: var(--text-2); margin: 0; }
+  .flash { animation: flash 1.4s ease-out; }
+  @keyframes flash { 0%, 30% { box-shadow: 0 0 0 4px var(--accent); } 100% { box-shadow: none; } }
+  .sw { flex: none; width: 9px; height: 9px; border-radius: 3px; }
+
+  /* ---------- floating ---------- */
+  .tip {
+    position: fixed; z-index: 50; pointer-events: none; max-width: 320px;
+    padding: 7px 10px; border-radius: 8px;
+    background: var(--text); color: var(--surface);
+    font-size: 12.5px; line-height: 1.5; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  }
+  .tip .t-dim { opacity: 0.72; }
+  /* ---------- import dialog ---------- */
+  .dlg {
+    width: min(560px, calc(100vw - 32px)); padding: 0; border: 0; border-radius: 14px;
+    background: #fff; color: var(--text); box-shadow: 0 18px 50px rgba(10, 14, 39, 0.28);
+  }
+  .dlg::backdrop { background: rgba(10, 14, 39, 0.42); }
+  .dlg-body { margin: 0; }
+  .dlg-head {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+    padding: 20px 26px 16px; border-bottom: 1px solid var(--n2);
+  }
+  .dlg h2 { margin: 0; font-size: 20px; font-weight: 700; line-height: 1.3; }
+  .dlg .x {
+    flex: none; width: 30px; height: 30px; border: 0; border-radius: 8px; background: #F1F1F1;
+    color: var(--n4); font-size: 17px; line-height: 1; cursor: pointer;
+  }
+  .dlg .x:hover { background: var(--n2); }
+  .dlg-main { display: flex; flex-direction: column; gap: 12px; padding: 16px 26px 22px; }
+  .dlg-hint { margin: 0; font-size: 13.5px; line-height: 1.65; color: var(--n3); }
+  .dlg textarea {
+    width: 100%; min-height: 180px; resize: vertical; padding: 10px 12px; border-radius: 8px;
+    border: 1px solid var(--line-strong); background: #fff; color: var(--text);
+    font: 12.5px/1.5 ui-monospace, "Cascadia Code", Consolas, monospace;
+  }
+  .dlg textarea:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(6, 136, 202, 0.12); }
+  .dlg.drop textarea { border-color: var(--accent); background: var(--accent-soft); }
+  .dlg-error { margin: 0; font-size: 13px; color: var(--critical); }
+  .dlg-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .dlg-actions .grow { flex: 1; }
+  .toast {
+    position: fixed; z-index: 60; bottom: 24px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 14px; max-width: min(640px, calc(100vw - 32px));
+    padding: 10px 16px; border-radius: 10px; background: var(--text); color: var(--surface);
+    font-size: 13px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+  }
+  .toast button { flex: none; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+
+  /* numbers in the site's number font */
+  .stat b, .r2 .v, .tn-root b, .leaf-code, .tn.leaf .tn-n, .g-code, .lg-n, .cg-head .n, .cchip .n,
+  .srow-head .code, #btn-opt-all .v, .opt .v, .b-val { font-family: var(--mono); }
+
+  @media (max-width: 1040px) {
+    .layout { grid-template-columns: minmax(0, 1fr); padding: 16px 16px 40px; }
+    .params { position: static; max-height: none; overflow: visible; }
+    .topbar { padding: 10px 16px; }
+  }
+  @media (max-width: 560px) {
+    .vtree { --lab: 86px; }
+    .vt-col { display: none; }
+    .stats { margin-inline-start: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .handle, .stage, .srow.branch, .tn, .links path, .map circle, .lg-row, .lg-fhead { transition: none; }
+    .flash { animation: none; box-shadow: 0 0 0 3px var(--accent); }
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="brand">
+    <svg viewBox="0 0 40 40" aria-hidden="true">
+      <circle cx="20" cy="20" r="17" fill="none" stroke="#fff" stroke-width="2.2" opacity=".9"/>
+      <path d="M20 7.5 L24.2 15.8 L32.5 20 L24.2 24.2 L20 32.5 L15.8 24.2 L7.5 20 L15.8 15.8 Z" fill="#fff" opacity=".95"/>
+    </svg>
+    <span class="bt">מצפן רשויות מקומיות</span>
+  </div>
+  <div class="tabs">
+    <span class="sep"></span>
+    <a href="index.html">תפיסת המדידה</a>
+    <a href="map.html">סקירת מדדים</a>
+    <a href="dashboard.html" class="on">קבוצות דומים</a>
+    <a href="manage.html">ניהול</a>
+  </div>
+</nav>
+
+<header class="topbar" id="topbar">
+  <h1 id="title">עץ קבוצות דומים</h1>
+  <div class="actions">
+    <label class="search">
+      <input id="search" type="search" placeholder="חיפוש רשות" autocomplete="off" aria-label="חיפוש רשות">
+      <svg viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+    </label>
+    <span class="search-n" id="search-n"></span>
+    <label class="min-field" title="קבוצה קטנה מזה מסומנת באזהרה">
+      מינימום
+      <input id="min-size" type="number" min="1" step="1" dir="ltr">
+    </label>
+    <div class="opt-all" id="opt-all">
+      <button class="btn-ghost" id="btn-opt-all" type="button">✦ מיטוב כל השלבים</button>
+      <span class="opt-warn" id="opt-warn" hidden><span class="ow-text"></span><button type="button" class="ow-fix" id="opt-warn-fix"></button><span class="ow-hint" hidden>צריך פחות קבוצות</span></span>
+    </div>
+    <button class="btn-primary" id="btn-rec" type="button">חזרה לחלוקה המומלצת</button>
+    <div class="menu">
+      <button class="btn-ghost btn-icon" id="menu-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="פעולות נוספות">⋯</button>
+      <div class="menu-pop" id="menu-pop" role="menu" hidden>
+        <button type="button" role="menuitem" id="btn-copy">העתקת הגדרות</button>
+        <button type="button" role="menuitem" id="btn-import">ייבוא הגדרות</button>
+        <button type="button" role="menuitem" id="btn-save">שמירת הגדרות לקובץ</button>
+        <button type="button" role="menuitem" id="btn-csv">ייצוא CSV</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="params" id="stages" aria-label="שלבי העץ"></aside>
+
+  <main>
+    <section class="panel tree-panel" aria-labelledby="tree-title">
+      <div class="panel-head">
+        <h2 id="tree-title">העץ</h2>
+        <div class="viewseg view-switch" id="view-switch" role="tablist" aria-label="תצוגה" hidden>
+          <button type="button" role="tab" id="view-tree" class="on" aria-selected="true" aria-controls="tree">עץ</button>
+          <button type="button" role="tab" id="view-map" aria-selected="false" aria-controls="map-view">מפה</button>
+        </div>
+        <div class="stats" id="stats"></div>
+      </div>
+      <div id="tree" role="tabpanel" aria-labelledby="view-tree"></div>
+      <div class="map-view" id="map-view" role="tabpanel" aria-labelledby="view-map" hidden>
+        <div class="map-grid">
+          <div class="map-box" id="map-box">
+            <svg class="map" id="map" tabindex="0" role="img" aria-label="מפת הרשויות, צבועות לפי קבוצה">
+              <g id="map-base"></g>
+              <g id="map-pts"></g>
+              <g id="map-labels"></g>
+            </svg>
+            <div class="map-ctl">
+              <button type="button" class="map-btn" id="map-in" aria-label="הגדלה">+</button>
+              <button type="button" class="map-btn" id="map-out" aria-label="הקטנה">−</button>
+              <button type="button" class="map-btn" id="map-fit" title="כל הארץ" aria-label="הצגת כל הארץ">⤢</button>
+            </div>
+          </div>
+          <div class="map-legend" id="map-legend"></div>
+        </div>
+      </div>
+      <p class="unassigned" id="unassigned" hidden></p>
+    </section>
+  </main>
+</div>
+
+<div class="tip" id="tip" hidden></div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<dialog class="dlg" id="import-dlg" aria-labelledby="import-title">
+  <form class="dlg-body" id="import-form">
+    <div class="dlg-head">
+      <h2 id="import-title">ייבוא הגדרות חלוקה</h2>
+      <button type="button" class="x" id="import-x" aria-label="סגירה">✕</button>
+    </div>
+    <div class="dlg-main">
+    <p class="dlg-hint">הדביקו כאן הגדרות שהועתקו ב"העתקת הגדרות", או בחרו קובץ באותו פורמט. אפשר גם לגרור קובץ לחלון.</p>
+    <textarea id="import-text" dir="ltr" rows="10" spellcheck="false" aria-label="הגדרות החלוקה"
+      placeholder='{ "min_group_size": 12, "levels": [ { "column": "shr_disability", "thresholds": [0.11] } ] }'></textarea>
+    <p class="dlg-error" id="import-error" role="alert" hidden></p>
+    <div class="dlg-actions">
+      <button type="button" class="btn-ghost" id="import-pick">בחירת קובץ</button>
+      <input type="file" id="import-file" accept=".json,.txt,.js,application/json,text/plain" hidden>
+      <span class="grow"></span>
+      <button type="button" class="btn-ghost" id="import-cancel">ביטול</button>
+      <button type="submit" class="btn-primary">טעינה</button>
+    </div>
+    </div>
+  </form>
+</dialog>
+
+<script src="assets/dashboard_data.js?v=20261015-1"></script>
+<script src="assets/dashboard_split.js?v=20261015-1"></script>
+<script src="assets/dashboard.js?v=20261015-1"></script>
+</body>
+</html>
