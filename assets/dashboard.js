@@ -6,7 +6,7 @@
    ומועתקים לכאן — לא לערוך ידנית.
 
    הדף משווה חלוקות, זו מתחת לזו. createDivision בונה חלוקה אחת ומחזיק את כל המצב שלה;
-   מה שמחוצה לו משותף: הנתונים, חישוב העץ, הציונים (R² או מדד יעד, `scoring`), החיפוש של
+   מה שמחוצה לו משותף: הנתונים, חישוב העץ, הציונים (R² או מדד מטרה, `scoring`), החיפוש של
    הספים, הדיאלוגים והדף עצמו (בסוף הקובץ).
    ============================================================ */
 (() => {
@@ -28,11 +28,14 @@
   // slot: the characteristic's key, or EXTRA.
   const THEMES = D.themes;
   const EXTRA = 'EXTRA';
-  const SLOT_LABEL = { ...Object.fromEntries(THEMES.map(t => [t.key, t.label])), [EXTRA]: 'חלוקה נוספת' };
+  const SLOT_LABEL = { ...Object.fromEntries(THEMES.map(t => [t.key, t.label])), [EXTRA]: 'פרמטר נוסף' };
   const AUTH = D.authorities;
   const COLS = D.columns;
   const COL = {};
   const SCALE_NAMES = { linear: 'לינארית', quantile: 'אחוזונים' };
+  // Columns the data has but the lists of columns do not offer. A split saved with one still
+  // shows it in its stage.
+  const OFF_LIST = new Set(['pop_19_20', 'shr_19_20', 'fin_is_regional_council']);
 
   // Blue ordinal ramp (steps 250-650): segments are ordered low -> high.
   const RAMP = ['#86b6ef', '#6da7ec', '#5598e7', '#3987e5', '#2a78d6', '#256abf', '#1c5cab', '#184f95', '#104281'];
@@ -46,7 +49,11 @@
 
   COLS.forEach((c, i) => {
     c.idx = i;
+    // one form for every placement column, as the rates already have it: "מושמי ..." and not
+    // "מושמים - ..."; the total reads "סה"כ מושמים ...", like its rate
+    c.label = c.label.replace(/^מושמים - סה"כ/, 'סה"כ מושמים').replace(/^מושמים - /, 'מושמי ');
     c.short = c.short || c.label;
+    c.offList = OFF_LIST.has(c.key);
     c.sorted = AUTH.map(a => a.v[i]).filter(v => v != null).sort((a, b) => a - b);
     c.missing = AUTH.length - c.sorted.length;
     c.min = c.sorted[0];
@@ -260,14 +267,16 @@
   // score. TARGET holds what the scores and the distribution view need: x per authority (absent
   // without a value), and pos(y), where a value on that scale sits on the chart (0 = lowest).
   // A column of categories without an order has no variance, and cannot be a target.
-  const scoring = { mode: SCORE ? 'r2' : 'target', col: '', scale: null };
+  // The scale is the user's: linear until they choose otherwise, and it stays when the column
+  // changes (a column of steps has no scale, and keeps the choice for the next one).
+  const scoring = { mode: SCORE ? 'r2' : 'target', col: '', scale: 'linear' };
   let TARGET = null;
   const canTarget = col => !!col && col.kind !== 'category';
 
   function setTarget() {
     const col = scoring.mode === 'target' && canTarget(COL[scoring.col]) ? COL[scoring.col] : null;
     if (!col) { TARGET = null; return; }
-    const type = col.discrete ? 'band' : SCALE_NAMES[scoring.scale] ? scoring.scale : col.defaultScale;
+    const type = col.discrete ? 'band' : SCALE_NAMES[scoring.scale] ? scoring.scale : 'linear';
     const scale = makeScale(col, type), pct = type === 'quantile', x = new Map();
     for (const a of AUTH) {
       const v = a.v[col.idx];
@@ -278,10 +287,10 @@
     TARGET = { col, type, scale, x, pos };
   }
 
-  const TARGET_HELP = 'ציון מדד היעד, מ-0 עד 10: עד כמה הרשויות שבאותה קבוצה דומות זו לזו במדד היעד. ' +
+  const TARGET_HELP = 'ציון מדד המטרה, מ-0 עד 10: עד כמה הרשויות שבאותה קבוצה דומות זו לזו במדד המטרה. ' +
     'הציון הוא 10 × (1 − השונות בתוך הקבוצות ÷ השונות של כל הרשויות). השונות בתוך הקבוצות משוקללת לפי גודל הקבוצה ' +
     'ומתוקנת למספר הקבוצות, כך שחלוקה אקראית מקבלת בערך 0 גם כשיש בה הרבה קבוצות. ' +
-    '10 פירושו שאין שונות בכלל בתוך הקבוצות. זה מצב חשוד, שקורה בדרך כלל כשמדד היעד הוא אחד מפרמטרי החלוקה או קרוב לאחד מהם.';
+    '10 פירושו שאין שונות בכלל בתוך הקבוצות. זה מצב חשוד, שקורה בדרך כלל כשמדד המטרה הוא אחד מפרמטרי החלוקה או קרוב לאחד מהם.';
   const METRICS = {
     r2: {
       k: 100, // the score in points out of 100
@@ -299,9 +308,9 @@
       xOf: id => TARGET.x.get(id),
       colsOf: () => [0],
       fit: (rows, cols, keyOf) => adjustedFit(rows, keyOf),
-      chip: 'יעד', score: 'ציון מדד היעד', of: 'תרומת השלב לציון מדד היעד', inOf: 'בתרומת השלב לציון מדד היעד',
-      ofAll: 'תרומתו לציון מדד היעד',
-      help: () => 'כמה השלב מוסיף לציון מדד היעד (מתוך 10): בכמה הוא מקטין את השונות של מדד היעד בתוך הקבוצות, ביחס לקבוצות שמעליו.',
+      chip: 'מטרה', score: 'ציון מדד המטרה', of: 'תרומת השלב לציון מדד המטרה', inOf: 'בתרומת השלב לציון מדד המטרה',
+      ofAll: 'תרומתו לציון מדד המטרה',
+      help: () => 'כמה השלב מוסיף לציון מדד המטרה (מתוך 10): בכמה הוא מקטין את השונות של מדד המטרה בתוך הקבוצות, ביחס לקבוצות שמעליו.',
       scoreHelp: () => TARGET_HELP + (TARGET?.type === 'quantile'
         ? ' בסקאלת אחוזונים הציון מחושב על הדירוג של הרשויות במדד, כך שכמה רשויות גדולות במיוחד לא קובעות אותו.' : ''),
     },
@@ -374,8 +383,8 @@
     });
   }
   const issueText = x => (x.same
-    ? `מדד היעד הוא גם פרמטר החלוקה בשלב "${SLOT_LABEL[x.A.slot]}". הקבוצות נבנו לפיו, ולכן השונות שלו בתוכן קטנה מטבעה, והציון לא מלמד הרבה על החלוקה.`
-    : `מדד היעד קשור מאוד לפרמטר "${x.A.col.short}" שבשלב "${SLOT_LABEL[x.A.slot]}" (מתאם דירוג ${x.r.toFixed(2)}), ולכן הציון עלול להיות גבוה בגלל זה בלבד.`);
+    ? `מדד המטרה הוא גם פרמטר החלוקה בשלב "${SLOT_LABEL[x.A.slot]}". הקבוצות נבנו לפיו, ולכן השונות שלו בתוכן קטנה מטבעה, והציון לא מלמד הרבה על החלוקה.`
+    : `מדד המטרה קשור מאוד לפרמטר "${x.A.col.short}" שבשלב "${SLOT_LABEL[x.A.slot]}" (מתאם דירוג ${x.r.toFixed(2)}), ולכן הציון עלול להיות גבוה בגלל זה בלבד.`);
 
   // ---------- state ----------
   // state.stages lists the stages in tree order. Each splits by one column. In "shared" mode every branch
@@ -549,23 +558,28 @@
   });
   const totalScore = T => stageGains(T).reduce((sum, g) => sum + (g || 0), 0);
 
-  // A characteristic's columns by their group, or (theme null) every column by characteristic.
-  // keep: which columns to offer; none: the text of the empty choice.
+  // A characteristic's columns by their sub-category (group), or (theme null) every column: by
+  // characteristic, and inside each by sub-category, whose name is a line that cannot be chosen
+  // (a list cannot nest its groups). keep: which columns to offer; none: the empty choice's text.
   function columnOptions(theme, { keep = () => true, none } = {}) {
-    const groups = new Map();
-    if (!theme) THEMES.forEach(t => groups.set(t.label, []));
-    COLS.filter(c => (!theme || c.theme === theme) && keep(c)).forEach(c => {
-      const g = theme ? c.group : SLOT_LABEL[c.theme];
-      if (!groups.has(g)) groups.set(g, []);
-      groups.get(g).push(c);
-    });
+    const cols = COLS.filter(c => (!theme || c.theme === theme) && keep(c));
+    const byGroup = cs => cs.reduce((m, c) => m.set(c.group, [...(m.get(c.group) || []), c]), new Map());
+    const opt = c => `<option value="${c.key}"${c.offList ? ' hidden' : ''}>${esc(c.label)}</option>`;
+    const listed = cols.filter(c => !c.offList);
     let html = `<option value="">${none ?? (theme ? 'ללא פיצול בשלב זה' : 'בחרו עמודה')}</option>`;
-    for (const [g, cs] of groups) {
-      if (!cs.length) continue;
-      html += `<optgroup label="${esc(g)}">` +
-        cs.map(c => `<option value="${c.key}">${esc(c.label)}</option>`).join('') + '</optgroup>';
+    if (theme) {
+      for (const [g, cs] of byGroup(listed)) html += `<optgroup label="${esc(g)}">${cs.map(opt).join('')}</optgroup>`;
+    } else {
+      for (const t of [...new Set([...THEMES.map(x => x.key), ...listed.map(c => c.theme)])]) {
+        const cs = listed.filter(c => c.theme === t);
+        if (!cs.length) continue;
+        html += `<optgroup label="${esc(SLOT_LABEL[t] ?? t)}">`;
+        for (const [g, gs] of byGroup(cs)) html += `<option class="opt-sub" disabled>${esc(g)}</option>${gs.map(opt).join('')}`;
+        html += '</optgroup>';
+      }
     }
-    return html;
+    // off the list, but a split from before may still have one: it keeps its name in the box
+    return html + cols.filter(c => c.offList).map(opt).join('');
   }
 
   // The site's square tabs mark the chosen button with `on`; aria-pressed says the same to screen readers.
@@ -614,7 +628,7 @@
     return `
       <header class="div-head">
         <h2 class="div-title" id="div-title-${u}"><span class="div-num"></span><span class="div-name"></span><span class="div-mod" hidden>שונתה</span></h2>
-        <div class="div-actions">
+        <div class="div-tools">
           <label class="min-field" title="קבוצה קטנה מזה מסומנת באזהרה">
             מינימום
             <input class="min-size" type="number" min="1" step="1" dir="ltr">
@@ -624,6 +638,8 @@
             <span class="opt-warn" hidden><span class="ow-text"></span><button type="button" class="ow-fix"></button><span class="ow-hint" hidden>צריך פחות קבוצות</span></span>
           </div>
           <button class="btn-ghost btn-rec" type="button"></button>
+        </div>
+        <div class="div-actions">
           <button class="btn-ghost" type="button" data-act="load">טעינת חלוקה שמורה</button>
           <button class="btn-ghost" type="button" data-act="save">שמירת החלוקה</button>
           <div class="menu">
@@ -668,7 +684,7 @@
                 <div class="map-legend"></div>
               </div>
             </div>
-            <div class="dist-view" id="dist-${u}" role="tabpanel" aria-label="התפלגות מדד היעד" hidden></div>
+            <div class="dist-view" id="dist-${u}" role="tabpanel" aria-label="התפלגות מדד המטרה" hidden></div>
             <p class="unassigned" hidden></p>
           </section>
         </div>
@@ -1223,7 +1239,7 @@
         allSig = '';
         btn.disabled = true;
         btn.textContent = '✦ מיטוב כל השלבים';
-        btn.title = metric().ok() ? 'אין שלבים לפיצול' : 'בחרו מדד יעד בסרגל העליון כדי למטב לפיו';
+        btn.title = metric().ok() ? 'אין שלבים לפיצול' : 'בחרו מדד מטרה בסרגל העליון כדי למטב לפיו';
         box.classList.remove('stale', 'warned');
         $d('.opt-warn').hidden = true;
         return;
@@ -1363,7 +1379,7 @@
               <svg class="chev" viewBox="0 0 20 20" aria-hidden="true"><path d="M5 8l5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
               <span class="stage-sum"></span>
             </button></h3>
-            ${extra ? '<button type="button" class="stage-x" title="הסרת החלוקה הנוספת" aria-label="הסרת החלוקה הנוספת">✕</button>' : ''}
+            ${extra ? '<button type="button" class="stage-x" title="הסרת הפרמטר הנוסף" aria-label="הסרת הפרמטר הנוסף">✕</button>' : ''}
           </div>
           <div class="stage-body" id="stage-body-${u}-${i}">
             <div class="stage-pick">
@@ -1446,7 +1462,7 @@
       const add = document.createElement('button');
       add.type = 'button';
       add.className = 'stage-add';
-      add.innerHTML = '<span class="sa-plus" aria-hidden="true">+</span><span class="sa-text"><b>חלוקה נוספת</b>' +
+      add.innerHTML = '<span class="sa-plus" aria-hidden="true">+</span><span class="sa-text"><b>פרמטר נוסף</b>' +
         '<span>לא חובה. לחצו כאן כדי להוסיף פרמטר חלוקה מתוך כל העמודות</span></span>';
       host.appendChild(add);
       add.addEventListener('click', () => {
@@ -1572,7 +1588,7 @@
       const sig = [...used].join();
       if (sig !== usedSig) {
         usedSig = sig;
-        stageUI.forEach(ui => ui.sel.querySelectorAll('option').forEach(o => {
+        stageUI.forEach(ui => ui.sel.querySelectorAll('option:not(.opt-sub)').forEach(o => {
           o.disabled = !!o.value && used.has(o.value) && used.get(o.value) !== ui.i;
         }));
       }
@@ -2160,13 +2176,13 @@
         html += `<span class="stat score"><b class="v">${scoreText(total)}${M.k === 10 ? '<span class="of">/10</span>' : ''}</b>${M.score}` +
           `<button type="button" class="help-btn" data-help="${esc(M.scoreHelp())}" aria-label="מה זה ${M.score}">?</button></span>`;
       } else if (scoring.mode === 'target' && !TARGET) {
-        html += '<span class="stat">בחרו מדד יעד</span>';
+        html += '<span class="stat">בחרו מדד מטרה</span>';
       }
       // a target that the groups were built from, or nearly, scores high for that alone
       const issues = targetIssues(T);
       if (issues.length) {
         html += `<span class="stat bad" tabindex="0" data-help="${esc(issues.map(issueText).join(' '))}"><span class="ico">⚠</span>` +
-          `${issues.some(x => x.same) ? 'מדד היעד הוא פרמטר בחלוקה' : 'מדד היעד קרוב לפרמטר בחלוקה'}</span>`;
+          `${issues.some(x => x.same) ? 'מדד המטרה הוא פרמטר בחלוקה' : 'מדד המטרה קרוב לפרמטר בחלוקה'}</span>`;
       }
       if (T.unassigned.length) html += `<span class="stat"><b>${T.unassigned.length}</b>לא שובצו</span>`;
       $d('.stats').innerHTML = html;
@@ -2691,7 +2707,7 @@
       const host = $d('.dist-view');
       if (mapState.mode !== 'dist') return;
       if (!TARGET) {
-        host.innerHTML = '<p class="empty-state">בחרו מדד יעד בסרגל העליון כדי לראות איך הוא מתפזר בכל קבוצה</p>';
+        host.innerHTML = '<p class="empty-state">בחרו מדד מטרה בסרגל העליון כדי לראות איך הוא מתפזר בכל קבוצה</p>';
         return;
       }
       const { col, x } = TARGET, pct = TARGET.type === 'quantile', sel = mapState.pin;
@@ -2722,7 +2738,7 @@
           `<span class="dr-n">${l.count < state.min ? '⚠ ' : ''}${g.n < l.count ? `${g.n}/${l.count}` : l.count}</span></button>`;
       };
       host.innerHTML =
-        `<div class="dist-head"><p class="dist-title"><span class="t-dim">מדד היעד:</span> <b>${esc(col.label)}</b>` +
+        `<div class="dist-head"><p class="dist-title"><span class="t-dim">מדד המטרה:</span> <b>${esc(col.label)}</b>` +
         (TARGET.type === 'band' ? '' : ` <span class="t-dim">· סקאלת ${SCALE_NAMES[TARGET.type]}</span>`) + '</p>' +
         `<p class="dist-sum">ציון <b class="v">${scoreText(fit)}<span class="of">/10</span></b> · השונות בתוך הקבוצות: ` +
         `<b>${Math.round(100 * (1 - fit))}%</b> מהשונות של כל הרשויות</p>` +
@@ -3126,7 +3142,7 @@
     const skipped = known.length - st.stages.filter(S => S.col).length;
     const notes = [];
     if (unknown.length) notes.push(`דולגו עמודות שלא קיימות בנתונים: ${unknown.join(', ')}`);
-    if (skipped) notes.push(`${skipped === 1 ? 'שלב אחד דולג' : `${skipped} שלבים דולגו`}: יש מקום לשלב אחד לכל מאפיין ולחלוקה נוספת אחת`);
+    if (skipped) notes.push(`${skipped === 1 ? 'שלב אחד דולג' : `${skipped} שלבים דולגו`}: יש מקום לשלב אחד לכל מאפיין ולפרמטר נוסף אחד`);
     return { st, notes };
   }
 
@@ -3510,7 +3526,7 @@
   // ---------- the score: R² or a target measurement ----------
   function wireScoring() {
     const mode = $('#score-mode'), sel = $('#target-col'), scale = $('#target-scale');
-    sel.innerHTML = columnOptions(null, { keep: canTarget, none: 'בחרו מדד יעד' });
+    sel.innerHTML = columnOptions(null, { keep: canTarget, none: 'בחרו מדד מטרה' });
     $('[data-mode="r2"]', mode).disabled = !SCORE;
     mode.addEventListener('click', e => {
       const b = e.target.closest('button[data-mode]');
@@ -3521,7 +3537,7 @@
         try { sel.showPicker(); } catch (err) { /* the browser cannot open the list from script */ }
       }
     });
-    sel.addEventListener('change', () => setScoring({ col: sel.value, scale: null }));
+    sel.addEventListener('change', () => setScoring({ col: sel.value })); // the scale stays as it was
     scale.addEventListener('click', e => {
       const b = e.target.closest('button[data-scale]');
       if (b && b.dataset.scale !== TARGET?.type) setScoring({ scale: b.dataset.scale });
@@ -3578,7 +3594,7 @@
   function saveHash() {
     if (IN_ARTIFACT) return;
     const o = { divisions: divisions.map(dv => dv.hashEntry()) };
-    if (scoring.mode === 'target') o.score = { target: scoring.col, scale: scoring.scale || undefined };
+    if (scoring.mode === 'target') o.score = { target: scoring.col, scale: scoring.scale };
     try { history.replaceState(null, '', '#' + encodeURIComponent(JSON.stringify(o))); } catch (e) { /* file:// in some browsers */ }
   }
   function readHash() {
@@ -3594,7 +3610,9 @@
     if (h && h.score && typeof h.score === 'object') {
       scoring.mode = 'target';
       scoring.col = canTarget(COL[h.score.target]) ? h.score.target : '';
-      scoring.scale = SCALE_NAMES[h.score.scale] ? h.score.scale : null;
+      // a link without a scale is from when the scale followed the column: it opens as it did
+      const col = COL[scoring.col];
+      scoring.scale = SCALE_NAMES[h.score.scale] ? h.score.scale : col && !col.discrete ? col.defaultScale : 'linear';
     }
     const list = Array.isArray(h?.divisions) ? h.divisions : Array.isArray(h?.levels) ? [{ kind: 'link', config: h }] : [];
     const out = [];

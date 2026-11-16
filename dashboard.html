@@ -35,6 +35,12 @@
     --land: #fff;
     --coast: var(--bg-4);
     --sea-ink: var(--teal);
+    /* the page's score, set apart from the blue of everything else: the site's teal, deepened
+       so white text on it and its text on --score-soft both pass contrast */
+    --score: #2C7A7A;
+    --score-ink: #1F5C5C;
+    --score-soft: var(--bg-1);
+    --score-line: #A9CFCF;
     --head-h: 60px;
   }
 
@@ -53,33 +59,61 @@
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-  /* ---------- top bar ---------- */
+  /* ---------- top bar ----------
+     Three columns: the title at the right, the score in the middle of the page, the search at
+     the left. The two sides share what is left equally, so the middle stays centered. */
   .topbar {
     position: sticky; top: var(--nav-h); z-index: 20;
-    display: flex; align-items: center; gap: 10px 16px; flex-wrap: wrap;
-    padding: 11px 24px;
+    display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 10px 16px;
+    padding: 10px 24px;
     background: color-mix(in srgb, var(--page) 88%, transparent);
     backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--border);
   }
-  .topbar h1 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
-  .actions { margin-inline-start: auto; display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; }
+  .topbar h1 { justify-self: start; margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+  .top-search { justify-self: end; display: flex; align-items: center; gap: 8px; }
+  /* not enough room for the score between the sides: it gets a row of its own, still centered */
+  @media (max-width: 1360px) {
+    .topbar { grid-template-columns: minmax(0, 1fr) auto; }
+    .topbar .score-pick { grid-row: 2; grid-column: 1 / -1; justify-self: center; }
+  }
+  @media (max-width: 640px) {
+    .topbar { grid-template-columns: minmax(0, 1fr); }
+    .topbar .score-pick { grid-row: auto; }
+    .top-search { justify-self: stretch; }
+    .topbar .top-search .search { flex: 1; width: auto; }
+  }
   /* the site's controls (app.css) at one height, so the toolbars line up */
-  .div-actions .btn-ghost, .div-add-card .btn-ghost { height: 38px; padding-block: 0; white-space: nowrap; }
-  .topbar .search { flex: none; width: 240px; } /* a set width: the toolbar sizes itself from it */
+  .div-tools .btn-ghost, .div-actions .btn-ghost, .div-add-card .btn-ghost { height: 38px; padding-block: 0; white-space: nowrap; }
+  .topbar .search { flex: none; width: 220px; } /* a set width: the toolbar sizes itself from it */
   .topbar .search input { height: 38px; }
   .btn-primary:disabled { background: transparent; border: 1px solid var(--line-strong); color: var(--n4); font-weight: 500; cursor: default; }
   .btn-rec:disabled { color: var(--n4); cursor: default; }
   .btn-rec:disabled:hover { border-color: var(--line-strong); color: var(--n4); }
   .btn-icon { width: 38px; padding: 0; font-size: 18px; line-height: 1; }
 
-  /* the score every division gets, chosen once for the page */
-  .score-pick { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
-  .sp-lbl { font-size: 13px; color: var(--n4); white-space: nowrap; }
-  .score-pick .viewseg button { height: 36px; padding-block: 0; }
-  .score-pick .fsel { height: 38px; padding-block: 0; min-width: 220px; max-width: 300px; }
+  /* the score every division gets, chosen once for the page: the one teal panel on the page,
+     larger than the other controls. The metric toggle leads; the target's scale is smaller. */
+  .score-pick {
+    display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px 10px;
+    padding: 6px 7px; padding-inline-start: 14px; border: 1px solid var(--score-line); border-radius: 12px;
+    background: var(--score-soft);
+  }
+  .sp-lbl { font-size: 14px; font-weight: 700; color: var(--score-ink); white-space: nowrap; }
+  .score-pick .viewseg { border-color: var(--score-line); background: #fff; }
+  .score-pick .viewseg button { height: 34px; padding: 0 13px; font-size: 13.5px; color: var(--score-ink); }
+  .score-pick .viewseg button + button { border-inline-start-color: var(--score-line); }
+  .score-pick .viewseg button:hover { color: var(--score); }
+  .score-pick .viewseg button.on { background: var(--score); color: #fff; }
+  #score-mode button { height: 42px; min-width: 96px; padding: 0 20px; font-size: 16px; font-weight: 600; }
+  #score-mode button.on { font-weight: 700; }
+  .score-pick .fsel { height: 42px; padding-block: 0; min-width: 220px; max-width: 280px; border-color: var(--score-line); font-size: 14px; }
+  .score-pick .fsel:focus { border-color: var(--score); box-shadow: 0 0 0 3px rgba(44, 122, 122, 0.18); }
+  /* In a list of every column, the characteristic is the list's group and each sub-category
+     is an unselectable line inside it. Browsers that style options show it as a tinted band. */
+  option.opt-sub, option.opt-sub:disabled { background: var(--surface-2); color: var(--text-2); font-weight: 700; }
   /* the divisions, best score first: a second row of the top bar once there are two */
-  .compare { flex-basis: 100%; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; font-size: 12.5px; }
+  .compare { grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; font-size: 12.5px; }
   .cmp-lbl { margin-inline-end: 2px; font-weight: 600; color: var(--text-2); }
   .cmp-chip {
     display: inline-flex; align-items: center; gap: 7px; height: 30px; padding-inline: 4px 11px;
@@ -145,7 +179,10 @@
   }
   .div-name { min-width: 0; overflow-wrap: anywhere; }
   .div-mod { flex: none; padding: 1px 9px; border-radius: 999px; background: var(--surface-2); color: var(--text-2); font-size: 11.5px; font-weight: 600; }
-  .div-actions { margin-inline-start: auto; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  /* A division's header: the tools that shape the split sit by its name, at the right; saving,
+     loading and the menu are at the left end. */
+  .div-tools, .div-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .div-actions { margin-inline-start: auto; }
   .div-x:hover { color: var(--bad-ink); border-color: var(--bad-ink); }
   .layout { display: grid; grid-template-columns: minmax(330px, 390px) minmax(0, 1fr); gap: 20px; align-items: start; }
   .params { position: relative; display: flex; flex-direction: column; gap: 10px; } /* positioned: cards measure their place in it */
@@ -652,24 +689,24 @@
 
 <header class="topbar" id="topbar">
   <h1 id="title">עץ קבוצות דומים</h1>
-  <div class="actions">
+  <div class="score-pick">
+    <span class="sp-lbl" id="score-lbl">ציון החלוקות</span>
+    <div class="viewseg" id="score-mode" role="group" aria-labelledby="score-lbl">
+      <button type="button" data-mode="r2" title="עד כמה רשויות באותה קבוצה דומות זו לזו בפרופיל העמודות של כל שלב">R²</button>
+      <button type="button" data-mode="target" title="עד כמה מדד אחד, מדד המטרה, אחיד בתוך הקבוצות">מדד מטרה</button>
+    </div>
+    <select class="fsel" id="target-col" aria-label="מדד המטרה" hidden></select>
+    <div class="viewseg" id="target-scale" role="group" aria-label="סקאלת מדד המטרה" hidden>
+      <button type="button" data-scale="linear" title="הציון לפי ערכי המדד עצמם">לינארית</button>
+      <button type="button" data-scale="quantile" title="הציון לפי הדירוג של הרשויות במדד, כך שכמה רשויות גדולות במיוחד לא קובעות אותו">אחוזונים</button>
+    </div>
+  </div>
+  <div class="top-search">
     <label class="search">
       <input id="search" type="search" placeholder="חיפוש רשות" autocomplete="off" aria-label="חיפוש רשות">
       <svg viewBox="0 0 24 24" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
     </label>
     <span class="search-n" id="search-n"></span>
-    <div class="score-pick">
-      <span class="sp-lbl" id="score-lbl">ציון החלוקות</span>
-      <div class="viewseg" id="score-mode" role="group" aria-labelledby="score-lbl">
-        <button type="button" data-mode="r2" title="עד כמה רשויות באותה קבוצה דומות זו לזו בפרופיל העמודות של כל שלב">R²</button>
-        <button type="button" data-mode="target" title="עד כמה מדד אחד, מדד היעד, אחיד בתוך הקבוצות">מדד יעד</button>
-      </div>
-      <select class="fsel" id="target-col" aria-label="מדד היעד" hidden></select>
-      <div class="viewseg" id="target-scale" role="group" aria-label="סקאלת מדד היעד" hidden>
-        <button type="button" data-scale="linear" title="הציון לפי ערכי המדד עצמם">לינארית</button>
-        <button type="button" data-scale="quantile" title="הציון לפי הדירוג של הרשויות במדד, כך שכמה רשויות גדולות במיוחד לא קובעות אותו">אחוזונים</button>
-      </div>
-    </div>
   </div>
   <div class="compare" id="compare" hidden></div>
 </header>
@@ -800,6 +837,6 @@
 <script src="assets/collect.js?v=20261116-1"></script>
 <script src="assets/dashboard_data.js?v=20261015-1"></script>
 <script src="assets/dashboard_split.js?v=20261015-1"></script>
-<script src="assets/dashboard.js?v=20261116-2"></script>
+<script src="assets/dashboard.js?v=20261116-3"></script>
 </body>
 </html>
