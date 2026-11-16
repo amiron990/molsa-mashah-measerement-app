@@ -93,6 +93,13 @@ function doPost(e) {
       return reply({ ok: true, indicators: mPublicIndicators() });
     }
 
+    /* גם רשימת החלוקות השמורות של עץ קבוצות דומים פתוחה לכל מי שנכנס לאתר, וכך גם
+       טעינה של חלוקה ממנה. שמירה ומחיקה ממשיכות למטה, אל manageApi והסיסמה. */
+    if (body.action === 'divisions' || body.action === 'division') {
+      if (body.token !== TOKEN) return reply({ ok: false, error: 'bad token' });
+      return reply(body.action === 'divisions' ? mListDivisions() : mGetDivision(body.name));
+    }
+
     /* יתר בקשות הניהול מטופלות ב-Manage.gs. הן נושאות סיסמת ניהול, לא את
        טוקן הסדנה, ולכן הן מנותבות לפני בדיקת הטוקן — ותחת אותה נעילה, כדי
        שעריכה מהמסך לא תיפגש עם תשובה שנשלחת באותו רגע מהסדנה. */

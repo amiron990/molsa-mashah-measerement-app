@@ -161,7 +161,8 @@
   function url() { return COLLECT_URL; }
 
   /* פנייה חד-פעמית לנקודת הקליטה, עם הטוקן — לבקשות שאינן אירועי סדנה
-     ואינן עוברות בתור. משמשת את מסך תפיסת המדידה למשיכת רשימת המדדים. */
+     ואינן עוברות בתור. משמשת את מסך תפיסת המדידה למשיכת רשימת המדדים, ואת
+     עץ קבוצות דומים לחלוקות השמורות. */
   function post(body) {
     if (!enabled() || !w.fetch) return Promise.reject(new Error('איסוף מושבת'));
     var payload = { token: COLLECT_TOKEN };
@@ -174,8 +175,15 @@
     }).then(function (res) {
       return res.text();
     }).then(function (t) {
-      var j = JSON.parse(t);
-      if (j.ok === false) throw new Error(j.error || 'שגיאה');
+      var j;
+      try { j = JSON.parse(t); }
+      catch (e) { throw new Error('תשובה לא צפויה מהשרת: ' + t.slice(0, 160)); }
+      if (j.ok === false) {
+        /* code — למשל 'exists' או 'login' — כדי שהקורא יוכל להגיב לסיבה, ולא רק להציג אותה */
+        var err = new Error(j.error || 'שגיאה');
+        err.code = j.code;
+        throw err;
+      }
       return j;
     });
   }

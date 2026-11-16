@@ -54,6 +54,9 @@
 
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
+/* מקום קבוע לפס הגלילה גם בדף שאינו נגלל. בלעדיו רוחב הדף משתנה בכל מעבר בין דף שיש בו
+   פס גלילה (תפיסת המדידה, סקירת מדדים) לדף שאין בו (קבוצות דומים, ניהול), וכל התוכן זז */
+html{scrollbar-gutter:stable}
 body{
   font-family:var(--font);
   background:var(--n1);
@@ -84,7 +87,9 @@ a:hover{text-decoration:underline}
   padding:8px 17px;border-radius:7px;transition:.15s;white-space:nowrap;
 }
 .nav .tabs a:hover{background:rgba(255,255,255,.14);text-decoration:none}
-.nav .tabs a.on{background:rgba(255,255,255,.22);color:#fff;font-weight:700}
+/* הלשונית הפעילה מודגשת בקו מתאר דק ולא במשקל הגופן: משקל עבה יותר מרחיב את הטקסט,
+   והלשוניות שלידה זזו בכל מעבר דף */
+.nav .tabs a.on{background:rgba(255,255,255,.22);color:#fff;-webkit-text-stroke:.45px currentColor}
 .nav .who{color:rgba(255,255,255,.9);font-size:12px;white-space:nowrap;padding-inline-start:8px}
 .navuser{display:flex;align-items:center;gap:9px;color:#fff;font-size:12.5px;white-space:nowrap}
 .navuser .nm{font-weight:700}

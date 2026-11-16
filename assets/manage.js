@@ -336,8 +336,18 @@
     try { sessionStorage.removeItem(STORE); } catch (e) {}
   }
 
+  /* נעילת הדף מאחורי השער: טשטוש (body.locked), ו-inert על כל מה שמחוץ לשער — כדי שלא
+     יהיה אפשר להגיע אליו גם ב-Tab, ולא רק בעכבר. הנעילה כאן היא חוויית שימוש בלבד: לפני
+     הכניסה אין בדף נתונים מהגיליון, וכל בקשה לשרת בלי הסיסמה נדחית ב-manageApi. */
+  function lockPage(on) {
+    d.body.classList.toggle('locked', on);
+    Array.prototype.forEach.call(d.body.children, function (el) {
+      if (el.id !== 'gate' && el.id !== 'toast') el.inert = on;
+    });
+  }
+
   function enter() {
-    d.body.classList.remove('locked');
+    lockPage(false);
     $('gate').classList.remove('on');
     $('navUser').innerHTML =
       '<span class="nm">' + esc(S.who) + '</span><span class="dv">ניהול</span>' +
@@ -361,7 +371,16 @@
     });
   }
 
+  /* השער מכסה את כל הדף, כולל פס הניווט, ובלי סיסמה אין כאן מה לעשות. «חזרה» (או Esc)
+     מחזירה לדף באתר שממנו הגיעו, ומי שפתח את המסך ישירות — לדף הבית. */
+  function leave() {
+    var fromSite = d.referrer && d.referrer.indexOf(w.location.origin + '/') === 0;
+    if (fromSite && w.history.length > 1) w.history.back();
+    else w.location.href = 'index.html';
+  }
+
   function gate() {
+    lockPage(true);
     $('gate').classList.add('on');
     $('gName').value = S.who || '';
     setTimeout(function () { ($('gName').value ? $('gPass') : $('gName')).focus(); }, 40);
@@ -1231,6 +1250,10 @@
       }).catch(function (err) {
         $('gErr').textContent = err.message;
       }).finally(function () { $('gBtn').disabled = false; });
+    });
+    $('gBack').addEventListener('click', leave);
+    $('gate').addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && $('gate').classList.contains('on')) leave();
     });
 
     $('screenTabs').addEventListener('click', function (e) {

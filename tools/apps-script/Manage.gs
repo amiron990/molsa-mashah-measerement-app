@@ -17,7 +17,8 @@
 
 var M = {
   IND: 'אינדיקטורים', CMT: 'הערות ודיון', CHG: 'יומן שינויים',
-  POT: 'מדדים פוטנציאליים', PCMT: 'הערות מדדים פוטנציאליים', TSK: 'משימות'
+  POT: 'מדדים פוטנציאליים', PCMT: 'הערות מדדים פוטנציאליים', TSK: 'משימות',
+  DIV: 'חלוקות שמורות'
 };
 
 /** עמודות המדד: תחילה כל שדה שקיים ב-INDICATORS שב-data.js, ואז שדות הניהול */
@@ -66,6 +67,17 @@ var TSK_COLS = [
 ];
 
 /**
+ * חלוקה שמורה של עץ קבוצות דומים (dashboard.html) — שורה לכל חלוקה, והשם הוא המפתח.
+ *   עמודות        — המפתחות הטכניים של עמודות השלבים, לפי הסדר (JSON)
+ *   שמות העמודות  — שם התצוגה של כל עמודה ביום השמירה (JSON), כדי שאפשר יהיה למצוא
+ *                   חלוקה לפי שם הפרמטר גם אחרי שהעמודה יצאה מהנתונים
+ *   הגדרות        — החלוקה המלאה, באותו פורמט ש«העתקת הגדרות» מעתיקה (JSON)
+ */
+var DIV_COLS = ['שם החלוקה', 'עמודות', 'שמות העמודות', 'הגדרות', 'נשמר על ידי', 'נשמר בתאריך'];
+var DIV_NAME_MAX = 100;     /* כמו NAME_MAX שב-assets/dashboard.js */
+var DIV_CELL_MAX = 50000;   /* מגבלת התווים של תא ב-Google Sheets */
+
+/**
  * הישויות שנשמרות דרך mSaveRow. המדדים עצמם אינם כאן — יש להם גרסה,
  * הורדה רכה ומרחב מזהים מספרי, ולכן הם נשארים ב-mSaveIndicator.
  *   idCol   — העמודה שמזהה שורה; ריק בשמירה = המזהה הבא בתור עם prefix
@@ -100,13 +112,14 @@ var LISTS = {
 
 /** הריצו פעם אחת מהעורך. יוצר את הלשוניות החסרות; אינו נוגע בקיימות. */
 function mSetup() {
-  var made = [M.IND, M.CMT, M.CHG, M.POT, M.PCMT, M.TSK];
+  var made = [M.IND, M.CMT, M.CHG, M.POT, M.PCMT, M.TSK, M.DIV];
   mSheet(M.IND, IND_COLS);
   mSheet(M.CMT, CMT_COLS);
   mSheet(M.CHG, CHG_COLS);
   mSheet(M.POT, POT_COLS);
   mSheet(M.PCMT, CMT_COLS);
   mSheet(M.TSK, TSK_COLS);
+  mDivSheet();
   mRenameCols();
   Logger.log('הגיליון: ' + book().getName());
   Logger.log('נוצרו או קיימות הלשוניות: ' + made.join(', '));
@@ -144,10 +157,14 @@ function setAdminPass() {
 
 /* ---------- עזרי גיליון ---------- */
 
+/**
+ * הלשונית לפי שם, עם כותרות. גם לשונית שכבר קיימת אבל ריקה לגמרי — כזו שנפתחה ידנית
+ * לפני ההרצה הראשונה — מקבלת את הכותרות: בלעדיהן mMap נופל עליה, כי אין בה אף עמודה.
+ * לשונית שיש בה תוכן אינה נדרסת.
+ */
 function mSheet(name, cols) {
-  var sh = book().getSheetByName(name);
-  if (!sh) {
-    sh = book().insertSheet(name);
+  var sh = book().getSheetByName(name) || book().insertSheet(name);
+  if (sh.getLastRow() === 0) {
     sh.setRightToLeft(true);
     sh.appendRow(cols);
     sh.getRange(1, 1, 1, cols.length)
@@ -283,7 +300,8 @@ function mLog(who, id, action, field, oldV, newV, reason) {
 function manageApi(body) {
   var stored = PropertiesService.getScriptProperties().getProperty('ADMIN_PASS');
   if (!stored) return reply({ ok: false, error: 'לא הוגדרה סיסמת ניהול. הריצו setAdminPass מעורך הסקריפט.' });
-  if (String(body.pass || '') !== stored) return reply({ ok: false, error: 'סיסמת ניהול שגויה.' });
+  /* code: 'login' — כדי שדף שהחזיק סיסמה ישנה ידע לשכוח אותה ולבקש אחרת */
+  if (String(body.pass || '') !== stored) return reply({ ok: false, code: 'login', error: 'סיסמת ניהול שגויה.' });
 
   var who = String(blank(body.who)).trim() || 'לא ידוע';
 
@@ -299,6 +317,8 @@ function manageApi(body) {
       case 'updateComment':   return reply(mUpdateComment(body.id, body.patch, who, body.scope));
       case 'ingest':          return reply(mIngestNow());
       case 'export':          return reply({ ok: true, indicators: mExport() });
+      case 'saveDivision':    return reply(mSaveDivision(body.division, body.overwrite === true, who));
+      case 'deleteDivision':  return reply(mDeleteDivision(body.name, who));
       default:                return reply({ ok: false, error: 'פעולה לא מוכרת: ' + body.action });
     }
   } catch (err) {
@@ -830,6 +850,160 @@ function mExport() {
   return out;
 }
 
+/* ---------- חלוקות שמורות (עץ קבוצות דומים) ----------
+   רשימה משותפת אחת. הקריאה ציבורית — מנותבת מ-doPost שב-Code.gs לפני בדיקת הסיסמה,
+   בלי נעילה ובלי לכתוב לגיליון. שמירה ומחיקה עוברות ב-manageApi: סיסמת ניהול, נעילה,
+   ורישום ביומן השינויים. כשל נושא code שהדף מגיב לו:
+     exists  — השם תפוס, והבקשה לא ביקשה להחליף
+     missing — אין חלוקה בשם הזה
+     name    — השם אינו עומד בכללים
+     login   — סיסמת ניהול שגויה (נקבע ב-manageApi) */
+
+/** הלשונית לכתיבה. כותרת שחסרה בה — למשל בלשונית שכותרותיה הוקלדו ידנית — נוספת בסוף השורה. */
+function mDivSheet() {
+  var sh = mSheet(M.DIV, DIV_COLS);
+  var m = mMap(sh);
+  var missing = DIV_COLS.filter(function (h) { return m[h] === undefined; });
+  if (missing.length) {
+    sh.getRange(1, sh.getLastColumn() + 1, 1, missing.length).setValues([missing]).setFontWeight('bold');
+  }
+  return sh;
+}
+
+/** השורות לקריאה בלבד: לשונית חסרה או ריקה היא רשימה ריקה, ואינה נוצרת מכאן */
+function mDivRows() {
+  var sh = book().getSheetByName(M.DIV);
+  return sh ? mRead(sh) : [];
+}
+
+function mJson(s, fallback) {
+  if (!s) return fallback;
+  try { return JSON.parse(s); } catch (e) { return fallback; }
+}
+
+/** חלוקה בלי ההגדרות עצמן — מה שהרשימה צריכה כדי להציג ולחפש */
+function mDivSummary(r) {
+  return {
+    name: String(r['שם החלוקה']).trim(),
+    columns: mJson(r['עמודות'], []),
+    labels: mJson(r['שמות העמודות'], {}),
+    savedBy: r['נשמר על ידי'],
+    savedAt: r['נשמר בתאריך']
+  };
+}
+
+function mListDivisions() {
+  var out = [];
+  mDivRows().forEach(function (r) {
+    if (String(r['שם החלוקה']).trim()) out.push(mDivSummary(r));
+  });
+  return { ok: true, divisions: out };
+}
+
+function mGetDivision(name) {
+  var key = String(blank(name)).trim();
+  var rows = mDivRows();
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i]['שם החלוקה']).trim() !== key) continue;
+    var config = mJson(rows[i]['הגדרות'], null);
+    if (!config) return { ok: false, code: 'broken', error: 'ההגדרות של החלוקה הזאת בגיליון אינן תקינות.' };
+    var d = mDivSummary(rows[i]);
+    d.config = config;
+    return { ok: true, division: d };
+  }
+  return { ok: false, code: 'missing', error: 'החלוקה הזאת כבר לא ברשימה.' };
+}
+
+/** אותם כללים כמו nameProblem שב-assets/dashboard.js. השרת בודק שוב — הדף אינו המגן. */
+function mDivNameProblem(name) {
+  if (!name) return 'צריך לתת לחלוקה שם.';
+  if (/[\r\n]/.test(name)) return 'השם לא יכול לכלול מעבר שורה.';
+  /* שם שמתחיל ב-= היה נכתב לגיליון כנוסחה */
+  if (name.charAt(0) === '=') return 'השם לא יכול להתחיל בסימן =.';
+  if (name.length > DIV_NAME_MAX) return 'השם ארוך מדי: עד ' + DIV_NAME_MAX + ' תווים.';
+  return '';
+}
+
+/** שמות השלבים לקריאה, לעמודת «ערך חדש» ביומן — ה-JSON המלא ארוך מדי לטבלה שם */
+function mDivStages(columns, labels) {
+  return columns.map(function (k) { return (labels && labels[k]) || k; }).join(' · ') || 'אין שלבים';
+}
+
+/**
+ * כותב את השדות לשורה כטקסט — כדי ש-Sheets לא יהפוך שם כמו "2024" למספר או את
+ * חותמת הזמן לתאריך. עמודות אחרות באותה שורה, אם הצוות הוסיף כאלה, אינן נדרסות.
+ */
+function mPutText(sh, row, obj) {
+  if (row > sh.getMaxRows()) sh.insertRowsAfter(sh.getMaxRows(), row - sh.getMaxRows());
+  var m = mMap(sh);
+  for (var h in obj) {
+    if (m[h] !== undefined) sh.getRange(row, m[h] + 1).setNumberFormat('@').setValue(String(blank(obj[h])));
+  }
+}
+
+/**
+ * שמירה ברשימה המשותפת. שם שכבר תפוס נדחה עם code 'exists', אלא אם overwrite — ואז
+ * השורה מוחלפת, והיומן שומר את תוכנה הקודם כ-JSON כי זה העותק היחיד שנשאר ממנו.
+ * רצה תחת הנעילה של doPost, ולכן הבדיקה אם השם תפוס והכתיבה הן פעולה אחת.
+ */
+function mSaveDivision(d, overwrite, who) {
+  d = d || {};
+  var name = String(blank(d.name)).trim();
+  var bad = mDivNameProblem(name);
+  if (bad) return { ok: false, code: 'name', error: bad };
+  if (!d.config || typeof d.config !== 'object' || !(d.config.levels instanceof Array)) {
+    return { ok: false, error: 'חסרות הגדרות החלוקה.' };
+  }
+  var columns = d.columns instanceof Array ? d.columns
+    : d.config.levels.map(function (l) { return l.column; });
+  var labels = d.labels && typeof d.labels === 'object' ? d.labels : {};
+
+  var obj = {
+    'שם החלוקה': name,
+    'עמודות': JSON.stringify(columns),
+    'שמות העמודות': JSON.stringify(labels),
+    'הגדרות': JSON.stringify(d.config),
+    'נשמר על ידי': who,
+    'נשמר בתאריך': Utilities.formatDate(new Date(), 'Asia/Jerusalem', "yyyy-MM-dd'T'HH:mm:ssXXX")
+  };
+  for (var h in obj) {
+    if (String(obj[h]).length > DIV_CELL_MAX) return { ok: false, error: 'החלוקה גדולה מדי לשמירה בגיליון.' };
+  }
+
+  var sh = mDivSheet();
+  var at = mFindRowBy(sh, 'שם החלוקה', name);
+  if (at && !overwrite) return { ok: false, code: 'exists', error: 'כבר יש חלוקה בשם הזה.' };
+
+  var stages = mDivStages(columns, labels);
+  if (at) {
+    var old = mOne(sh, at);
+    delete old._row;
+    mLog(who, name, 'החלפת חלוקה', '—', JSON.stringify(old), stages, '');
+  } else {
+    at = sh.getLastRow() + 1;
+    mLog(who, name, 'שמירת חלוקה', '—', '', stages, '');
+  }
+  mPutText(sh, at, obj);
+
+  return { ok: true, division: {
+    name: name, columns: columns, labels: labels, savedBy: who, savedAt: obj['נשמר בתאריך']
+  } };
+}
+
+/** מחיקה של ממש, כמו במדדים הפוטנציאליים: כל תוכן השורה נשמר ב«ערך קודם» ביומן */
+function mDeleteDivision(name, who) {
+  var key = String(blank(name)).trim();
+  var sh = mDivSheet();
+  var at = key ? mFindRowBy(sh, 'שם החלוקה', key) : null;
+  if (!at) return { ok: false, code: 'missing', error: 'החלוקה הזאת כבר לא ברשימה.' };
+
+  var snap = mOne(sh, at);
+  delete snap._row;
+  mLog(who, key, 'מחיקת חלוקה', '—', JSON.stringify(snap), '', '');
+  sh.deleteRow(at);
+  return { ok: true, deleted: key };
+}
+
 /* ---------- בדיקה מתוך העורך ---------- */
 
 function mDiag() {
@@ -841,6 +1015,7 @@ function mDiag() {
   Logger.log('שורות יומן: ' + mRead(mSheet(M.CHG, CHG_COLS)).length);
   Logger.log('מדדים פוטנציאליים: ' + mRead(mSheet(M.POT, POT_COLS)).length);
   Logger.log('משימות: ' + mRead(mSheet(M.TSK, TSK_COLS)).length);
+  Logger.log('חלוקות שמורות: ' + mDivRows().length);
   Logger.log('סיסמת ניהול מוגדרת: ' +
     (PropertiesService.getScriptProperties().getProperty('ADMIN_PASS') ? 'כן' : 'לא'));
   return 'ok';
