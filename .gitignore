@@ -2,6 +2,8 @@
 *.pdf
 _reference/
 _t.html
+# saved divisions of the local test server (tools/local_divisions.py)
+tools/local-divisions.json*
 
 # Raw source data (compiled into assets/data.js by tools/gen_data.py).
 # נתונים.csv sits here; the two dimension files live in the parent folder.
