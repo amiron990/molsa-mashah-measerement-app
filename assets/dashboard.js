@@ -2685,6 +2685,12 @@
       if (col.kind === 'binary') return num(y * 100) + '%';
       return col.discrete ? num(y) : fmt(y, col);
     }
+    // A standard deviation as a plain number on the values' own units — never as a percent,
+    // even when the target is a share (0.12, not 12%).
+    function sdText(sd) {
+      if (sd == null) return '—';
+      return TARGET.type === 'quantile' ? nf(0).format(Math.round(sd)) : num(sd);
+    }
     // Round values for an axis from lo to hi, about n of them.
     function niceTicks(lo, hi, n) {
       if (!(hi > lo)) return [lo];
@@ -2729,7 +2735,7 @@
       const sortBtn = (key, label) => `<button type="button" data-sort="${key}">${label}` +
         (key !== 'tree' && distSort.by === key ? (distSort.dir < 0 ? ' ↓' : ' ↑') : '') + '</button>';
       const row = (g, cls, lab) => `<div class="dr${cls}"${g.l ? ` data-key="${g.l.key}"` : ''}>${lab}` +
-        `<svg class="dr-strip" aria-hidden="true"></svg><span class="dr-v">${yText(g.mean)}</span><span class="dr-v">${yText(g.sd)}</span></div>`;
+        `<svg class="dr-strip" aria-hidden="true"></svg><span class="dr-v">${yText(g.mean)}</span><span class="dr-v">${sdText(g.sd)}</span></div>`;
       const groupLab = g => {
         const l = g.l, name = groupName(l);
         return `<button type="button" class="dr-lab" aria-pressed="${l.key === sel}" title="${esc(name)}">` +
